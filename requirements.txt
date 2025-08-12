@@ -1,8 +1,9 @@
 # Mushroom LED Sculpture Dependencies
 # Python 3.9+ required
+# Raspberry Pi 5 compatible
 
 # LED Control
-rpi-ws281x==5.0.0
+pi5neo==1.0.1
 
 # Audio Processing
 sounddevice==0.4.6

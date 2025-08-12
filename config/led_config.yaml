@@ -1,46 +1,30 @@
 # LED Strip Configuration
-# Physical layout for 700 LEDs across 4 GPIO pins
+# Raspberry Pi 5 with Pi5Neo library
+# Physical layout: 700 LEDs across 2 SPI channels
 
 strips:
-  - id: cap_primary
-    gpio_pin: 10  # SPI for best performance
-    led_count: 200
+  - id: stem_interior
+    spi_device: "/dev/spidev1.0"  # SPI1 for stem
+    led_count: 250
     led_start: 0
-    led_end: 199
-    location: "mushroom_cap"
-    description: "Main cap illumination"
-    
-  - id: cap_secondary  
-    gpio_pin: 12  # PWM0
-    led_count: 200
-    led_start: 200
-    led_end: 399
-    location: "mushroom_cap"
-    description: "Secondary cap illumination"
-    
-  - id: stem_upper
-    gpio_pin: 18  # PWM0
-    led_count: 150
-    led_start: 400
-    led_end: 549
+    led_end: 249
     location: "mushroom_stem"
-    description: "Upper stem - visible from entrance"
+    description: "Interior stem lighting for seated viewers"
     
-  - id: stem_lower
-    gpio_pin: 21  # PWM1
-    led_count: 150
-    led_start: 550
+  - id: cap_exterior
+    spi_device: "/dev/spidev0.0"  # SPI0 for cap  
+    led_count: 450
+    led_start: 250
     led_end: 699
-    location: "mushroom_stem"
-    description: "Lower stem - ground level"
+    location: "mushroom_cap"
+    description: "Exterior cap illumination visible from outside"
 
-# Hardware settings
+# Hardware settings for Pi5Neo
 hardware:
-  freq_hz: 800000      # WS2811 frequency
-  dma_channel: 10      # DMA channel (5 or 10 are safe)
-  invert: false        # Signal inversion
-  brightness: 128      # Global brightness (0-255)
-  strip_type: "WS2811" # LED type
+  spi_speed_khz: 800     # SPI speed in kHz for WS2811
+  brightness: 128        # Global brightness (0-255)
+  strip_type: "WS2811"   # LED type
+  color_order: "RGB"     # Color order (RGB, GRB, etc.)
   
 # Power settings
 power:

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 Single Strip LED Controller - Simplified controller for testing with one strip
-Use this when testing with a single GPIO pin
+Raspberry Pi 5 version using Pi5Neo library
 """
 
-from rpi_ws281x import PixelStrip, Color
+from pi5neo import Pi5Neo
 import numpy as np
 import time
 import logging
@@ -16,38 +16,26 @@ logger = logging.getLogger(__name__)
 class SingleStripController:
     """Simplified controller for single strip testing"""
     
-    def __init__(self, gpio_pin: int = 10, led_count: int = 200, brightness: int = 128):
-        self.gpio_pin = gpio_pin
+    def __init__(self, spi_device: str = '/dev/spidev0.0', led_count: int = 200, brightness: int = 128):
+        self.spi_device = spi_device
         self.led_count = led_count
         self.total_leds = led_count  # For compatibility with patterns
+        self.brightness = brightness
         
-        # Hardware settings
-        freq_hz = 800000
-        invert = False
-        
-        # GPIO-specific settings
-        if gpio_pin == 10:
-            channel = 0
-            dma_channel = 10  # SPI
-        elif gpio_pin in [12, 18]:
-            channel = 0  # PWM0
-            dma_channel = 5
-        elif gpio_pin == 21:
-            channel = 1  # PWM1
-            dma_channel = 5
-        else:
-            # Fallback for testing
-            channel = 0
-            dma_channel = 10
-            logger.warning(f"GPIO {gpio_pin} not in standard config, using defaults")
-        
-        # Initialize strip
-        self.strip = PixelStrip(
-            led_count, gpio_pin, freq_hz, dma_channel,
-            invert, brightness, channel
-        )
-        
-        self.strip.begin()
+        # Initialize Pi5Neo strip
+        try:
+            self.strip = Pi5Neo(
+                spi_device=spi_device,
+                num_leds=led_count,
+                spi_speed_khz=800
+            )
+            
+            # Clear on init
+            self.clear()
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize strip on {spi_device}: {e}")
+            raise
         
         # Pixel buffer
         self.pixels = np.zeros((led_count, 3), dtype=np.uint8)
@@ -57,7 +45,7 @@ class SingleStripController:
         self.last_fps_time = time.time()
         self.current_fps = 0
         
-        logger.info(f"Single strip controller initialized: GPIO {gpio_pin}, {led_count} LEDs")
+        logger.info(f"Single strip controller initialized: {spi_device}, {led_count} LEDs")
     
     def set_pixel(self, index: int, color: Tuple[int, int, int]):
         """Set a single pixel"""
@@ -75,8 +63,12 @@ class SingleStripController:
         """Push pixels to strip"""
         for i in range(self.led_count):
             r, g, b = self.pixels[i]
-            self.strip.setPixelColor(i, Color(int(r), int(g), int(b)))
-        self.strip.show()
+            # Apply brightness scaling
+            r = int(r * self.brightness / 255)
+            g = int(g * self.brightness / 255)
+            b = int(b * self.brightness / 255)
+            self.strip.set_led_color(i, r, g, b)
+        self.strip.update_strip()
         
         # Update FPS
         self.frame_count += 1
@@ -89,11 +81,12 @@ class SingleStripController:
     def clear(self):
         """Clear all LEDs"""
         self.pixels.fill(0)
-        self.update()
+        self.strip.fill_strip(0, 0, 0)
+        self.strip.update_strip()
     
     def set_brightness(self, brightness: int):
         """Set brightness (0-255)"""
-        self.strip.setBrightness(brightness)
+        self.brightness = max(0, min(255, brightness))
     
     def get_fps(self) -> float:
         """Get current FPS"""

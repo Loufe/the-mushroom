@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 def main():
     parser = argparse.ArgumentParser(description='Test single LED strip with patterns')
-    parser.add_argument('--gpio', type=int, default=10,
-                      help='GPIO pin (default: 10)')
+    parser.add_argument('--spi', default='/dev/spidev0.0',
+                      help='SPI device (default: /dev/spidev0.0)')
     parser.add_argument('--count', type=int, default=200,
                       help='Number of LEDs (default: 200)')
     parser.add_argument('--brightness', type=int, default=64,
@@ -35,14 +35,14 @@ def main():
     args = parser.parse_args()
     
     print(f"\n{'='*50}")
-    print(f"Single Strip Pattern Test")
-    print(f"GPIO: {args.gpio}, LEDs: {args.count}, Brightness: {args.brightness}")
+    print(f"Single Strip Pattern Test (Pi5Neo)")
+    print(f"SPI: {args.spi}, LEDs: {args.count}, Brightness: {args.brightness}")
     print(f"{'='*50}\n")
     
     try:
         # Initialize controller
         controller = SingleStripController(
-            gpio_pin=args.gpio,
+            spi_device=args.spi,
             led_count=args.count,
             brightness=args.brightness
         )

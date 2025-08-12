@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 LED Controller - Hardware abstraction layer for WS2811 LED strips
-Manages multiple strips across different GPIO pins
+Raspberry Pi 5 version using Pi5Neo library with dual SPI channels
 """
 
-from rpi_ws281x import PixelStrip, Color
+from pi5neo import Pi5Neo
 import numpy as np
 import time
 import yaml
@@ -15,74 +15,79 @@ logger = logging.getLogger(__name__)
 
 
 class LEDStrip:
-    """Manages a single LED strip on one GPIO pin"""
+    """Manages a single LED strip on one SPI channel"""
     
     def __init__(self, config: dict, hardware_config: dict):
         self.id = config['id']
-        self.gpio_pin = config['gpio_pin']
+        self.spi_device = config['spi_device']
         self.led_count = config['led_count']
         self.led_start = config['led_start']
         self.led_end = config['led_end']
+        self.location = config['location']
+        self.description = config['description']
         
         # Hardware settings from config
-        self.freq_hz = hardware_config.get('freq_hz', 800000)
-        self.invert = hardware_config.get('invert', False)
+        self.spi_speed = hardware_config.get('spi_speed_khz', 800)
         self.brightness = hardware_config.get('brightness', 128)
         
-        # GPIO-specific channel and DMA selection
-        # GPIO 10 uses SPI (channel 0, DMA 10)
-        # GPIO 12, 18 use PWM0 (channel 0, DMA 5)
-        # GPIO 21 uses PWM1 (channel 1, DMA 5)
-        if self.gpio_pin == 10:
-            self.channel = 0
-            self.dma_channel = 10  # SPI uses DMA 10
-        elif self.gpio_pin in [12, 18]:
-            self.channel = 0  # PWM0
-            self.dma_channel = 5
-        elif self.gpio_pin == 21:
-            self.channel = 1  # PWM1
-            self.dma_channel = 5
-        else:
-            raise ValueError(f"Unsupported GPIO pin: {self.gpio_pin}")
-        
-        # Initialize the strip
-        self.strip = PixelStrip(
-            self.led_count,
-            self.gpio_pin,
-            self.freq_hz,
-            self.dma_channel,
-            self.invert,
-            self.brightness,
-            self.channel
-        )
-        
-        self.strip.begin()
-        logger.info(f"Initialized strip {self.id} on GPIO {self.gpio_pin} with {self.led_count} LEDs")
+        # Initialize Pi5Neo strip
+        try:
+            self.strip = Pi5Neo(
+                spi_device=self.spi_device,
+                num_leds=self.led_count, 
+                spi_speed_khz=self.spi_speed
+            )
+            
+            # Clear strip on init
+            self.clear()
+            
+            logger.info(f"Initialized strip {self.id} on {self.spi_device} with {self.led_count} LEDs")
+        except Exception as e:
+            logger.error(f"Failed to initialize strip {self.id}: {e}")
+            raise
     
     def set_pixel(self, index: int, color: Tuple[int, int, int]):
         """Set a single pixel color"""
         if 0 <= index < self.led_count:
-            self.strip.setPixelColor(index, Color(*color))
+            r, g, b = color
+            # Apply brightness scaling
+            r = int(r * self.brightness / 255)
+            g = int(g * self.brightness / 255)
+            b = int(b * self.brightness / 255)
+            self.strip.set_led_color(index, r, g, b)
     
     def set_pixels(self, colors: np.ndarray):
         """Set all pixels from numpy array of RGB values"""
         for i in range(min(len(colors), self.led_count)):
             r, g, b = colors[i]
-            self.strip.setPixelColor(i, Color(int(r), int(g), int(b)))
+            # Apply brightness scaling
+            r = int(r * self.brightness / 255)
+            g = int(g * self.brightness / 255)
+            b = int(b * self.brightness / 255)
+            self.strip.set_led_color(i, r, g, b)
     
     def show(self):
         """Update the physical LEDs"""
-        self.strip.show()
+        self.strip.update_strip()
     
     def clear(self):
         """Turn off all LEDs"""
-        for i in range(self.led_count):
-            self.strip.setPixelColor(i, Color(0, 0, 0))
-        self.strip.show()
+        self.strip.fill_strip(0, 0, 0)
+        self.strip.update_strip()
     
     def set_brightness(self, brightness: int):
         """Set global brightness (0-255)"""
-        self.strip.setBrightness(brightness)
+        self.brightness = max(0, min(255, brightness))
+    
+    def fill(self, color: Tuple[int, int, int]):
+        """Fill entire strip with one color"""
+        r, g, b = color
+        # Apply brightness scaling
+        r = int(r * self.brightness / 255)
+        g = int(g * self.brightness / 255)
+        b = int(b * self.brightness / 255)
+        self.strip.fill_strip(r, g, b)
+        self.strip.update_strip()
 
 
 class LEDController:
@@ -98,15 +103,20 @@ class LEDController:
         
         # Initialize strips
         self.strips = []
+        self.strip_map = {}  # Map strip IDs to strip objects
         hardware_config = self.config.get('hardware', {})
         
         for strip_config in self.config['strips']:
             try:
                 strip = LEDStrip(strip_config, hardware_config)
                 self.strips.append(strip)
+                self.strip_map[strip_config['id']] = strip
             except Exception as e:
                 logger.error(f"Failed to initialize strip {strip_config['id']}: {e}")
                 # Continue with other strips instead of failing completely
+        
+        if not self.strips:
+            raise RuntimeError("No LED strips could be initialized")
         
         # Create unified pixel buffer
         self.pixels = np.zeros((self.total_leds, 3), dtype=np.uint8)
@@ -153,7 +163,8 @@ class LEDController:
     def clear(self):
         """Clear all LEDs"""
         self.pixels.fill(0)
-        self.update()
+        for strip in self.strips:
+            strip.clear()
     
     def set_brightness(self, brightness: int):
         """Set global brightness for all strips (0-255)"""
@@ -163,6 +174,24 @@ class LEDController:
     def get_fps(self) -> float:
         """Get current FPS"""
         return self.current_fps
+    
+    def get_strip(self, strip_id: str) -> Optional[LEDStrip]:
+        """Get a specific strip by ID"""
+        return self.strip_map.get(strip_id)
+    
+    def set_stem_pixels(self, colors: np.ndarray):
+        """Set pixels for the stem interior only"""
+        strip = self.strip_map.get('stem_interior')
+        if strip:
+            strip.set_pixels(colors)
+            strip.show()
+    
+    def set_cap_pixels(self, colors: np.ndarray):
+        """Set pixels for the cap exterior only"""
+        strip = self.strip_map.get('cap_exterior')
+        if strip:
+            strip.set_pixels(colors)
+            strip.show()
     
     def cleanup(self):
         """Clean shutdown"""
