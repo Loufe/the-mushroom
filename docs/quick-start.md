@@ -71,11 +71,11 @@ cd ~/the-mushroom
 source mushroom-env/bin/activate
 
 # Test with minimal LEDs first
-sudo mushroom-env/bin/python test_spi.py --count 1 --mode stem
-sudo mushroom-env/bin/python test_spi.py --count 1 --mode cap
+sudo mushroom-env/bin/python tests/test_spi.py --count 1 --mode stem
+sudo mushroom-env/bin/python tests/test_spi.py --count 1 --mode cap
 
 # Test full configuration
-sudo mushroom-env/bin/python test_spi.py --mode both
+sudo mushroom-env/bin/python tests/test_spi.py --mode both
 ```
 
 ### 5. Run Light Show

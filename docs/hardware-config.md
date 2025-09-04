@@ -80,7 +80,7 @@ ls /dev/spidev*
 ## Development Setup
 - **SSH Access:** dietpi@192.168.1.152
 - **Virtual Environment:** /home/dietpi/the-mushroom/mushroom-env
-- **Test Script:** test_spi.py for hardware validation
+- **Test Script:** tests/test_spi.py for hardware validation
 - **Main Application:** main.py for patterns
 
 ## Troubleshooting
@@ -88,7 +88,7 @@ ls /dev/spidev*
 ### LED Issues
 - Verify SPI enabled: `lsmod | grep spi`
 - Check permissions: Run with `sudo`
-- Test minimal: `sudo python3 test_spi.py --count 1`
+- Test minimal: `sudo python3 tests/test_spi.py --count 1`
 
 ### Performance
 - Monitor temp: `vcgencmd measure_temp`

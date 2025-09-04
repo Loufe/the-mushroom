@@ -138,19 +138,27 @@ class LEDController:
         if len(colors) == self.total_leds:
             self.pixels = colors.astype(np.uint8)
         else:
-            # Handle size mismatch
+            # Handle size mismatch with warning
+            logger.warning(f"Pattern provided {len(colors)} pixels but controller expects {self.total_leds}")
             min_len = min(len(colors), self.total_leds)
             self.pixels[:min_len] = colors[:min_len].astype(np.uint8)
+            # Clear any remaining pixels if pattern provided fewer
+            if len(colors) < self.total_leds:
+                self.pixels[min_len:] = 0
     
     def update(self):
         """Push pixel buffer to all strips"""
         for strip in self.strips:
-            # Get the slice of pixels for this strip
-            start = strip.led_start
-            end = strip.led_end + 1
-            strip_pixels = self.pixels[start:end]
-            strip.set_pixels(strip_pixels)
-            strip.show()
+            try:
+                # Get the slice of pixels for this strip
+                start = strip.led_start
+                end = strip.led_end + 1
+                strip_pixels = self.pixels[start:end]
+                strip.set_pixels(strip_pixels)
+                strip.show()
+            except Exception as e:
+                logger.error(f"Failed to update strip {strip.id}: {e}")
+                # Continue updating other strips even if one fails
         
         # Update FPS counter
         self.frame_count += 1
@@ -168,8 +176,16 @@ class LEDController:
     
     def set_brightness(self, brightness: int):
         """Set global brightness for all strips (0-255)"""
+        # Validate brightness range
+        if not 0 <= brightness <= 255:
+            logger.warning(f"Brightness {brightness} out of range, clamping to 0-255")
+            brightness = max(0, min(255, brightness))
+        
         for strip in self.strips:
-            strip.set_brightness(brightness)
+            try:
+                strip.set_brightness(brightness)
+            except Exception as e:
+                logger.error(f"Failed to set brightness for strip {strip.id}: {e}")
     
     def get_fps(self) -> float:
         """Get current FPS"""
@@ -183,15 +199,25 @@ class LEDController:
         """Set pixels for the stem interior only"""
         strip = self.strip_map.get('stem_interior')
         if strip:
-            strip.set_pixels(colors)
-            strip.show()
+            try:
+                if len(colors) != strip.led_count:
+                    logger.warning(f"Stem pixels: expected {strip.led_count} pixels, got {len(colors)}")
+                strip.set_pixels(colors)
+                strip.show()
+            except Exception as e:
+                logger.error(f"Failed to update stem pixels: {e}")
     
     def set_cap_pixels(self, colors: np.ndarray):
         """Set pixels for the cap exterior only"""
         strip = self.strip_map.get('cap_exterior')
         if strip:
-            strip.set_pixels(colors)
-            strip.show()
+            try:
+                if len(colors) != strip.led_count:
+                    logger.warning(f"Cap pixels: expected {strip.led_count} pixels, got {len(colors)}")
+                strip.set_pixels(colors)
+                strip.show()
+            except Exception as e:
+                logger.error(f"Failed to update cap pixels: {e}")
     
     def cleanup(self):
         """Clean shutdown"""

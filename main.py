@@ -14,8 +14,8 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
-from led_controller import LEDController
-from patterns import RainbowWave, RainbowCycle, TestPattern
+from hardware.led_controller import LEDController
+from patterns import PatternRegistry
 
 # Setup logging
 logging.basicConfig(
@@ -34,15 +34,21 @@ class MushroomLights:
         # Initialize LED controller
         self.controller = LEDController(config_path)
         
-        # Available patterns
-        self.patterns = {
-            'test': TestPattern(self.controller.total_leds),
-            'rainbow_wave': RainbowWave(self.controller.total_leds),
-            'rainbow_cycle': RainbowCycle(self.controller.total_leds),
-        }
+        # Pattern registry
+        self.registry = PatternRegistry()
         
-        # Start with rainbow wave
-        self.current_pattern_name = 'rainbow_wave'
+        # Create pattern instances
+        self.patterns = {}
+        for pattern_name in self.registry.list_patterns():
+            pattern_instance = self.registry.create_pattern(pattern_name, self.controller.total_leds)
+            if pattern_instance:
+                self.patterns[pattern_name] = pattern_instance
+        
+        if not self.patterns:
+            raise RuntimeError("No patterns available in registry")
+        
+        # Start with rainbow wave or first available pattern
+        self.current_pattern_name = 'rainbow_wave' if 'rainbow_wave' in self.patterns else list(self.patterns.keys())[0]
         self.current_pattern = self.patterns[self.current_pattern_name]
         
         # Control flags
@@ -59,43 +65,54 @@ class MushroomLights:
         logger.info("Shutdown signal received")
         self.running = False
     
-    def switch_pattern(self, pattern_name: str):
+    def switch_pattern(self, pattern_name: str) -> bool:
         """Switch to a different pattern"""
         if pattern_name in self.patterns:
             self.current_pattern_name = pattern_name
             self.current_pattern = self.patterns[pattern_name]
             self.current_pattern.reset()
             logger.info(f"Switched to pattern: {pattern_name}")
+            return True
         else:
-            logger.warning(f"Unknown pattern: {pattern_name}")
+            logger.error(f"Unknown pattern: {pattern_name}. Available patterns: {list(self.patterns.keys())}")
+            return False
     
     def run(self):
         """Main application loop"""
         logger.info("Starting main loop...")
         
         # Performance monitoring
-        frame_count = 0
         last_log_time = time.time()
+        target_fps = 60  # Maximum FPS to prevent CPU waste
+        frame_time = 1.0 / target_fps
+        last_frame_time = time.time()
         
         try:
             while self.running:
+                current_time = time.time()
+                
                 # Get pattern output
                 pixels = self.current_pattern.render()
                 
-                # Send to LEDs
-                self.controller.set_pixels(pixels)
-                self.controller.update()
+                # Send to LEDs with error handling
+                try:
+                    self.controller.set_pixels(pixels)
+                    self.controller.update()
+                except Exception as e:
+                    logger.error(f"Failed to update LEDs: {e}")
+                    # Continue running even if LED update fails
                 
                 # Performance monitoring
-                frame_count += 1
-                current_time = time.time()
                 if current_time - last_log_time >= 5.0:  # Log every 5 seconds
                     fps = self.controller.get_fps()
                     logger.info(f"Pattern: {self.current_pattern_name} | FPS: {fps:.1f}")
                     last_log_time = current_time
                 
-                # Small sleep to prevent CPU spinning
-                time.sleep(0.001)
+                # Frame rate limiting - sleep only if we're ahead of schedule
+                frame_duration = current_time - last_frame_time
+                if frame_duration < frame_time:
+                    time.sleep(frame_time - frame_duration)
+                last_frame_time = time.time()
         
         except Exception as e:
             logger.error(f"Error in main loop: {e}", exc_info=True)
@@ -109,11 +126,14 @@ class MushroomLights:
 
 def main():
     """Entry point"""
+    # Get available patterns from registry
+    available_patterns = PatternRegistry().list_patterns()
+    
     parser = argparse.ArgumentParser(description='Mushroom LED Controller')
     parser.add_argument(
         '--pattern', '-p',
         default=None,
-        choices=['test', 'rainbow_wave', 'rainbow_cycle'],
+        choices=available_patterns if available_patterns else None,
         help='Initial pattern to display (overrides startup config)'
     )
     parser.add_argument(
@@ -166,17 +186,26 @@ def main():
     # Create and run application
     app = MushroomLights(args.config)
     
-    # Set initial brightness
+    # Validate and set initial brightness
+    if not 0 <= startup_brightness <= 255:
+        logger.warning(f"Invalid brightness {startup_brightness}, clamping to range 0-255")
+        startup_brightness = max(0, min(255, startup_brightness))
     app.controller.set_brightness(startup_brightness)
+    logger.info(f"Set brightness to {startup_brightness}")
     
-    # Set initial pattern
-    app.switch_pattern(startup_pattern)
+    # Validate and set initial pattern
+    if not app.switch_pattern(startup_pattern):
+        logger.warning(f"Pattern '{startup_pattern}' not found, falling back to 'rainbow_wave'")
+        app.switch_pattern('rainbow_wave')
     
     # Apply pattern-specific parameters if available
-    if startup_pattern in pattern_params:
-        for param, value in pattern_params[startup_pattern].items():
-            app.current_pattern.set_param(param, value)
-            logger.info(f"Set {startup_pattern}.{param} = {value}")
+    if app.current_pattern_name in pattern_params:
+        for param, value in pattern_params[app.current_pattern_name].items():
+            try:
+                app.current_pattern.set_param(param, value)
+                logger.info(f"Set {app.current_pattern_name}.{param} = {value}")
+            except Exception as e:
+                logger.error(f"Failed to set parameter {param}: {e}")
     
     # Run
     app.run()

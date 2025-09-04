@@ -6,6 +6,7 @@ Rainbow Patterns - Various rainbow effects for LED strips
 import numpy as np
 from typing import Dict, Any
 from .base import Pattern
+from .registry import PatternRegistry
 
 
 def hsv_to_rgb(h: np.ndarray, s: float = 1.0, v: float = 1.0) -> np.ndarray:
@@ -43,6 +44,7 @@ def hsv_to_rgb(h: np.ndarray, s: float = 1.0, v: float = 1.0) -> np.ndarray:
     return rgb.astype(np.uint8)
 
 
+@PatternRegistry.register("rainbow_wave")
 class RainbowWave(Pattern):
     """Rainbow wave that travels along the LED strip"""
     
@@ -74,6 +76,7 @@ class RainbowWave(Pattern):
         return self.pixels
 
 
+@PatternRegistry.register("rainbow_cycle")
 class RainbowCycle(Pattern):
     """All LEDs cycle through rainbow together"""
     

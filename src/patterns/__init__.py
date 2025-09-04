@@ -1,5 +1,12 @@
 # Pattern modules
-from .base import Pattern, TestPattern
-from .rainbow import RainbowWave, RainbowCycle
+from .base import Pattern
+from .registry import PatternRegistry
 
-__all__ = ['Pattern', 'TestPattern', 'RainbowWave', 'RainbowCycle']
+# Import all pattern modules to trigger registration
+# The decorators will automatically register them
+from . import test
+from . import rainbow
+from . import solid
+
+# Export the registry and base class for external use
+__all__ = ['Pattern', 'PatternRegistry']

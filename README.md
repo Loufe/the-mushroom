@@ -55,13 +55,13 @@ pip install -r requirements.txt
 ### 4. Test Hardware
 ```bash
 # Quick test with 10 LEDs per strip
-sudo mushroom-env/bin/python test_spi.py --count 10
+sudo mushroom-env/bin/python tests/test_spi.py --count 10
 
 # Test full configuration
-sudo mushroom-env/bin/python test_spi.py --mode both
+sudo mushroom-env/bin/python tests/test_spi.py --mode both
 
 # Test dual simultaneous control
-sudo mushroom-env/bin/python test_spi.py --mode dual
+sudo mushroom-env/bin/python tests/test_spi.py --mode dual
 ```
 
 ### 5. Run Main Application
@@ -78,16 +78,26 @@ sudo mushroom-env/bin/python main.py --pattern rainbow_wave --brightness 128
 ```
 the-mushroom/
 ├── src/
-│   ├── led_controller.py    # Pi5Neo-based hardware control
-│   └── patterns/
-│       ├── base.py          # Abstract pattern class
-│       └── rainbow.py       # Rainbow effects
+│   ├── hardware/
+│   │   └── led_controller.py  # Pi5Neo-based hardware control
+│   ├── patterns/
+│   │   ├── base.py            # Abstract pattern class
+│   │   ├── test.py            # Test pattern
+│   │   └── rainbow.py         # Rainbow effects
+│   └── effects/
+│       └── colors.py          # Color utilities and palettes
+├── tests/                     # Test files
+│   ├── test_spi.py            # SPI hardware test
+│   ├── test_gpio_verify.py    # GPIO verification
+│   └── led_controller_single.py # Mock controller
+├── scripts/                   # Operational scripts
+│   ├── setup_autostart.sh    # Systemd service setup
+│   └── change_pattern.sh     # Pattern switcher
 ├── config/
-│   ├── led_config.yaml     # Strip configuration
-│   └── coordinates.yaml    # 3D mapping (TBD)
-├── main.py                  # Main application
-├── test_spi.py             # SPI hardware test
-└── requirements.txt        # Python dependencies
+│   ├── led_config.yaml       # Strip configuration
+│   └── startup.yaml          # Startup settings
+├── main.py                    # Main application
+└── requirements.txt          # Python dependencies
 ```
 
 ## LED Configuration
@@ -119,7 +129,7 @@ lsmod | grep spi
 ls -la /dev/spidev*
 
 # Test with minimal LEDs
-sudo python3 test_spi.py --count 1
+sudo python3 tests/test_spi.py --count 1
 ```
 
 ### Permission Errors
