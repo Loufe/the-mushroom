@@ -45,18 +45,6 @@ if [ ! -f "${PROJECT_DIR}/main.py" ] || [ ! -d "${PROJECT_DIR}/src" ]; then
     exit 1
 fi
 
-# Check disk space (need at least 500MB)
-AVAILABLE_SPACE=$(df "${PROJECT_DIR}" | awk 'NR==2 {print $4}')
-if [ "$AVAILABLE_SPACE" -lt 500000 ]; then
-    echo -e "${RED}Warning: Low disk space ($(($AVAILABLE_SPACE/1024))MB available)${NC}"
-    echo -e "${YELLOW}At least 500MB recommended for setup${NC}"
-    read -p "Continue anyway? (y/n): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
-    fi
-fi
-
 # Function to show current status
 show_status() {
     echo -e "\n${BLUE}=== Current Setup Status ===${NC}"
@@ -226,14 +214,6 @@ check_system_deps() {
     # Essential packages for building Python modules and GPIO access
     local required_packages=("python3-venv" "build-essential" "python3-dev" "git")
     
-    # Check for GPIO library headers (needed for pi5neo compilation)
-    if [ -d "/usr/include/linux" ]; then
-        echo -e "${GREEN}✓ Linux headers found${NC}"
-    else
-        echo -e "${YELLOW}⚠ Linux headers may be missing (needed for GPIO)${NC}"
-        missing_deps+=("linux-headers")
-    fi
-    
     for pkg in "${required_packages[@]}"; do
         if ! dpkg -l | grep -q "^ii  $pkg"; then
             missing_deps+=("$pkg")
@@ -283,81 +263,34 @@ setup_venv() {
     echo -e "${GREEN}✓ Virtual environment created${NC}"
 }
 
-# Function to check network connectivity
-check_network() {
-    echo -e "\n${BLUE}Checking network connectivity...${NC}"
-    
-    # Test connection to PyPI
-    if curl -s --head --connect-timeout 5 https://pypi.org > /dev/null; then
-        echo -e "${GREEN}✓ Network connection OK${NC}"
-        return 0
-    else
-        echo -e "${RED}⚠ Cannot reach PyPI servers${NC}"
-        echo -e "${YELLOW}Network is required for package installation${NC}"
-        read -p "Continue anyway? (y/n): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            exit 1
-        fi
-        return 1
-    fi
-}
-
 # Function to install Python dependencies
 install_dependencies() {
     echo -e "\n${BLUE}Installing Python dependencies...${NC}"
     
-    # Check network first
-    check_network
-    
     # Activate virtual environment
     source "$VENV_PATH/bin/activate"
     
-    # Upgrade pip first with retry
+    # Upgrade pip first
     echo -e "${GREEN}Upgrading pip...${NC}"
-    pip install --upgrade pip || {
-        echo -e "${YELLOW}First attempt failed, retrying...${NC}"
-        sleep 2
-        pip install --upgrade pip
-    }
+    pip install --upgrade pip
     
     # Install requirements
     if [ -f "${PROJECT_DIR}/requirements.txt" ]; then
         echo -e "${GREEN}Installing from requirements.txt...${NC}"
-        
-        # Try installing with better error handling
-        if ! pip install -r "${PROJECT_DIR}/requirements.txt"; then
-            echo -e "${YELLOW}Some packages failed to install. Trying individually...${NC}"
-            
-            # Try critical packages individually
-            echo -e "${YELLOW}Installing pi5neo (LED control)...${NC}"
-            pip install pi5neo==1.0.1 || {
-                echo -e "${RED}ERROR: pi5neo installation failed!${NC}"
-                echo -e "${YELLOW}This is critical for LED control. Possible causes:${NC}"
-                echo "  1. Missing GPIO headers - install: sudo apt-get install linux-headers"
-                echo "  2. Not on Raspberry Pi 5"
-                echo "  3. Compilation error - check build-essential is installed"
-                deactivate
-                exit 1
-            }
-            
-            # Install other packages (non-critical failures OK)
-            echo -e "${YELLOW}Installing other packages...${NC}"
-            pip install numpy==1.24.3 || echo -e "${YELLOW}⚠ numpy failed (patterns may not work)${NC}"
-            pip install pyyaml==6.0.1 || echo -e "${YELLOW}⚠ pyyaml failed (config loading affected)${NC}"
-            pip install sounddevice==0.4.6 || echo -e "${YELLOW}⚠ sounddevice failed (audio features disabled)${NC}"
-        fi
+        pip install -r "${PROJECT_DIR}/requirements.txt"
         
         # Verify critical packages
         echo -e "\n${BLUE}Verifying installations...${NC}"
         
-        # Check pi5neo (critical)
+        # Check pi5neo (critical for LED control)
         if python -c "import pi5neo" 2>/dev/null; then
             echo -e "${GREEN}✓ pi5neo installed${NC}"
         else
-            echo -e "${RED}✗ pi5neo installation failed - cannot continue${NC}"
-            deactivate
-            exit 1
+            echo -e "${RED}✗ pi5neo installation failed${NC}"
+            echo -e "${YELLOW}This is critical for LED control. Possible fixes:${NC}"
+            echo "  1. Check build-essential is installed"
+            echo "  2. Verify you're on a Raspberry Pi"
+            echo "  3. Try reinstalling: pip install -r requirements.txt"
         fi
         
         # Check numpy

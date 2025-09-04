@@ -25,12 +25,6 @@ hardware:
   brightness: 128        # Global brightness (0-255)
   strip_type: "WS2811"   # LED type
   color_order: "RGB"     # Color order (RGB, GRB, etc.)
-  
-# Power settings
-power:
-  max_current_ma: 20000  # 20A supply
-  led_current_ma: 60     # Per LED at full white
-  voltage: 5             # Supply voltage
 
 # Performance settings  
 performance:

@@ -12,9 +12,9 @@ Interactive LED sculpture controller for 700 WS2811 LEDs on Raspberry Pi 5
 ### 1. Hardware Setup
 - **Stem Interior**: 250 LEDs → SPI1 (GPIO 20/21)
 - **Cap Exterior**: 450 LEDs → SPI0 (GPIO 10/11)
-- Connect 5V power supply (20A minimum)
-- Add power injection every 100-150 LEDs
-- No level shifter needed for SPI mode
+- Connect 12V power supply (15A minimum for 12V WS2811)
+- Power injection every 200-300 LEDs (12V has less voltage drop)
+- No level shifter needed - 12V strips still use 3.3V/5V data signals
 
 ### 2. Raspberry Pi 5 Setup
 ```bash

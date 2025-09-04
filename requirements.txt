@@ -3,18 +3,18 @@
 # Raspberry Pi 5 compatible
 
 # LED Control
-pi5neo==1.0.1
+pi5neo  # Pi 5 specific LED library
 
-# Audio Processing
-sounddevice==0.4.6
-numpy==1.24.3
-scipy==1.10.1
+# Audio Processing  
+sounddevice
+numpy
+scipy
 
 # Configuration & Utilities
-pyyaml==6.0.1
-psutil==5.9.5
+pyyaml
+psutil
 
 # Development dependencies (optional)
-# pytest==7.4.3
-# black==23.12.0
-# pylint==3.0.3
+# pytest
+# black
+# pylint
