@@ -39,17 +39,10 @@ ls /dev/spidev*
 # SSH into your Pi
 ssh dietpi@192.168.1.152
 
-# Clone repository
+# Clone and setup
 git clone https://github.com/Loufe/the-mushroom.git
 cd the-mushroom
-
-# Create virtual environment
-python3 -m venv mushroom-env
-source mushroom-env/bin/activate
-
-# Install dependencies
-pip install --upgrade pip
-pip install -r requirements.txt
+./setup.sh  # Automated setup (no sudo)
 ```
 
 ### 4. Test Hardware
@@ -66,11 +59,11 @@ sudo mushroom-env/bin/python tests/test_spi.py --mode dual
 
 ### 5. Run Main Application
 ```bash
-# Run with default settings
-sudo mushroom-env/bin/python main.py
+# After setup.sh, use the helper script:
+./run.sh
 
-# Run with options
-sudo mushroom-env/bin/python main.py --pattern rainbow_wave --brightness 128
+# With options:
+./run.sh --pattern rainbow_wave --brightness 128
 ```
 
 ## Architecture

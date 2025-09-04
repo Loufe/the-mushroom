@@ -98,20 +98,40 @@ check_raspberry_pi() {
         exit 1
     fi
     
-    # Check for Raspberry Pi
-    if ! grep -q "Raspberry Pi" /proc/cpuinfo; then
+    # Check for Raspberry Pi - try multiple methods
+    IS_PI=false
+    IS_PI5=false
+    
+    # Method 1: Check /proc/device-tree/model (most reliable)
+    if [ -f /proc/device-tree/model ]; then
+        MODEL=$(cat /proc/device-tree/model | tr -d '\0')
+        if [[ "$MODEL" == *"Raspberry Pi"* ]]; then
+            IS_PI=true
+            echo -e "${GREEN}✓ Detected: $MODEL${NC}"
+            if [[ "$MODEL" == *"Raspberry Pi 5"* ]]; then
+                IS_PI5=true
+            fi
+        fi
+    fi
+    
+    # Method 2: Fallback to /proc/cpuinfo
+    if [ "$IS_PI" = false ] && grep -q "Raspberry Pi" /proc/cpuinfo; then
+        IS_PI=true
+        # Check for BCM2712 (Pi 5 processor)
+        if grep -q "BCM2712" /proc/cpuinfo; then
+            IS_PI5=true
+        fi
+    fi
+    
+    # Report findings
+    if [ "$IS_PI" = false ]; then
         echo -e "${YELLOW}Warning: This doesn't appear to be a Raspberry Pi${NC}"
         read -p "Continue anyway? (y/n): " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             exit 1
         fi
-    fi
-    
-    # Check for Pi 5 specifically (BCM2712)
-    if grep -q "BCM2712" /proc/cpuinfo; then
-        echo -e "${GREEN}✓ Raspberry Pi 5 detected${NC}"
-    else
+    elif [ "$IS_PI5" = false ]; then
         echo -e "${YELLOW}⚠ Not a Raspberry Pi 5 - performance may vary${NC}"
     fi
     
@@ -169,16 +189,24 @@ check_spi() {
         fi
     done
     
-    # Check boot config for SPI1
-    if [ -f /boot/config.txt ]; then
-        if ! grep -q "^dtoverlay=spi1-1cs" /boot/config.txt; then
-            echo -e "${YELLOW}⚠ SPI1 overlay not found in /boot/config.txt${NC}"
-            spi_issues=1
+    # Only check config if devices are missing
+    if [ $spi_issues -eq 1 ]; then
+        # Check boot config for SPI1 overlay
+        CONFIG_CHECKED=false
+        if [ -f /boot/config.txt ]; then
+            CONFIG_CHECKED=true
+            if ! grep -q "dtoverlay=spi1" /boot/config.txt; then
+                echo -e "${YELLOW}⚠ SPI1 overlay not found in /boot/config.txt${NC}"
+            fi
+        elif [ -f /boot/firmware/config.txt ]; then
+            CONFIG_CHECKED=true
+            if ! grep -q "dtoverlay=spi1" /boot/firmware/config.txt; then
+                echo -e "${YELLOW}⚠ SPI1 overlay not found in /boot/firmware/config.txt${NC}"
+            fi
         fi
-    elif [ -f /boot/firmware/config.txt ]; then
-        if ! grep -q "^dtoverlay=spi1-1cs" /boot/firmware/config.txt; then
-            echo -e "${YELLOW}⚠ SPI1 overlay not found in /boot/firmware/config.txt${NC}"
-            spi_issues=1
+        
+        if [ "$CONFIG_CHECKED" = false ]; then
+            echo -e "${YELLOW}⚠ Could not locate boot config file${NC}"
         fi
     fi
     
