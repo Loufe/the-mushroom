@@ -112,9 +112,9 @@ def main():
     parser = argparse.ArgumentParser(description='Mushroom LED Controller')
     parser.add_argument(
         '--pattern', '-p',
-        default='rainbow_wave',
+        default=None,
         choices=['test', 'rainbow_wave', 'rainbow_cycle'],
-        help='Initial pattern to display'
+        help='Initial pattern to display (overrides startup config)'
     )
     parser.add_argument(
         '--config', '-c',
@@ -124,21 +124,59 @@ def main():
     parser.add_argument(
         '--brightness', '-b',
         type=int,
-        default=128,
-        help='Global brightness (0-255)'
+        default=None,
+        help='Global brightness 0-255 (overrides startup config)'
+    )
+    parser.add_argument(
+        '--startup-config', '-s',
+        default='config/startup.yaml',
+        help='Path to startup configuration file'
+    )
+    parser.add_argument(
+        '--no-startup-config',
+        action='store_true',
+        help='Ignore startup config file'
     )
     
     args = parser.parse_args()
+    
+    # Load startup configuration if it exists and not disabled
+    startup_pattern = 'rainbow_wave'
+    startup_brightness = 128
+    pattern_params = {}
+    
+    if not args.no_startup_config and Path(args.startup_config).exists():
+        try:
+            import yaml
+            with open(args.startup_config, 'r') as f:
+                startup = yaml.safe_load(f)
+                startup_pattern = startup.get('pattern', 'rainbow_wave')
+                startup_brightness = startup.get('brightness', 128)
+                pattern_params = startup.get('pattern_params', {})
+                logger.info(f"Loaded startup config from {args.startup_config}")
+        except Exception as e:
+            logger.warning(f"Could not load startup config: {e}")
+    
+    # Command line arguments override startup config
+    if args.pattern:
+        startup_pattern = args.pattern
+    if args.brightness is not None:
+        startup_brightness = args.brightness
     
     # Create and run application
     app = MushroomLights(args.config)
     
     # Set initial brightness
-    app.controller.set_brightness(args.brightness)
+    app.controller.set_brightness(startup_brightness)
     
     # Set initial pattern
-    if args.pattern:
-        app.switch_pattern(args.pattern)
+    app.switch_pattern(startup_pattern)
+    
+    # Apply pattern-specific parameters if available
+    if startup_pattern in pattern_params:
+        for param, value in pattern_params[startup_pattern].items():
+            app.current_pattern.set_param(param, value)
+            logger.info(f"Set {startup_pattern}.{param} = {value}")
     
     # Run
     app.run()

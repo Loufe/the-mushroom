@@ -4,7 +4,7 @@
 
 strips:
   - id: stem_interior
-    spi_device: "/dev/spidev1.0"  # SPI1 for stem
+    spi_device: "/dev/spidev1.0"  # SPI1 - GPIO 20 (Pin 38)
     led_count: 250
     led_start: 0
     led_end: 249
@@ -12,7 +12,7 @@ strips:
     description: "Interior stem lighting for seated viewers"
     
   - id: cap_exterior
-    spi_device: "/dev/spidev0.0"  # SPI0 for cap  
+    spi_device: "/dev/spidev0.0"  # SPI0 - GPIO 10 (Pin 19)
     led_count: 450
     led_start: 250
     led_end: 699

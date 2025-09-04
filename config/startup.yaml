@@ -1,0 +1,32 @@
+# Startup Configuration
+# This file controls what pattern and settings are used when the light show starts on boot
+
+# Pattern to load at startup
+# Available: test, rainbow_wave, rainbow_cycle
+pattern: test
+
+# Global brightness (0-255)
+brightness: 64
+
+# Pattern-specific parameters (optional)
+pattern_params:
+  rainbow_wave:
+    wave_length: 100
+    speed: 50.0
+    saturation: 1.0
+  rainbow_cycle:
+    cycle_time: 5.0
+    saturation: 1.0
+  test:
+    cycle_time: 3.0
+
+# Performance settings
+performance:
+  fps_logging: true        # Log FPS every 5 seconds
+  log_interval: 5          # Seconds between FPS logs
+  
+# Future audio-reactive settings (not yet implemented)
+audio:
+  enabled: false
+  device: "default"
+  sensitivity: 0.5
