@@ -100,7 +100,7 @@ class MushroomLights:
                 # Send to LEDs with error handling
                 try:
                     self.controller.set_pixels(pixels)
-                    self.controller.update()
+                    self.controller.present()
                 except Exception as e:
                     logger.error(f"Failed to update LEDs: {e}")
                     # Continue running even if LED update fails

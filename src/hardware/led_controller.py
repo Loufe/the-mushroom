@@ -46,6 +46,7 @@ class LEDStrip:
             
             # Clear strip on init
             self.clear()
+            self.present()
             
             logger.info(f"Initialized strip {self.id} on {self.spi_device} with {self.led_count} LEDs")
         except Exception as e:
@@ -70,7 +71,7 @@ class LEDStrip:
     def set_pixels(self, colors: np.ndarray):
         """Set all pixels from numpy array of RGB values
         
-        NOTE: This only updates internal state. Call show() to send to hardware.
+        NOTE: This only updates internal state. Call present() to send to hardware.
         Brightness is applied here before passing to Pi5Neo.
         """
         pixel_count = min(len(colors), self.led_count)
@@ -86,7 +87,7 @@ class LEDStrip:
         for i in range(pixel_count):
             self.strip.set_led_color(i, int(scaled[i, 0]), int(scaled[i, 1]), int(scaled[i, 2]))
     
-    def show(self):
+    def present(self):
         """Update the physical LEDs with current pixel state
         
         CRITICAL: Uses sleep_duration=None to prevent 0.1s delay.
@@ -95,7 +96,7 @@ class LEDStrip:
         self.strip.update_strip(sleep_duration=SPI_UPDATE_DELAY)
     
     def clear(self):
-        """Turn off all LEDs (requires show() to update hardware)"""
+        """Turn off all LEDs (requires present() to update hardware)"""
         self.strip.fill_strip(0, 0, 0)
     
     def set_brightness(self, brightness: int):
@@ -106,7 +107,7 @@ class LEDStrip:
     def fill(self, color: Tuple[int, int, int]):
         """Fill entire strip with one color
         
-        NOTE: Only updates internal state. Call show() to send to hardware.
+        NOTE: Only updates internal state. Call present() to send to hardware.
         """
         r, g, b = self._apply_brightness(*color)
         self.strip.fill_strip(r, g, b)
@@ -176,7 +177,7 @@ class LEDController:
             if len(colors) < self.total_leds:
                 self.pixels[min_len:] = 0
     
-    def update(self):
+    def present(self):
         """Push pixel buffer to all strips"""
         for strip in self.strips:
             try:
@@ -185,7 +186,7 @@ class LEDController:
                 end = strip.led_end + 1
                 strip_pixels = self.pixels[start:end]
                 strip.set_pixels(strip_pixels)
-                strip.show()
+                strip.present()
             except Exception as e:
                 logger.error(f"Failed to update strip {strip.id}: {e}")
                 # Continue updating other strips even if one fails
@@ -199,14 +200,12 @@ class LEDController:
             self.last_fps_time = current_time
     
     def clear(self):
-        """Clear all LEDs
-        
-        NOTE: Immediately updates hardware for all strips.
-        """
+        """Clear all LEDs (requires present() to update hardware)"""
         self.pixels.fill(0)
-        for strip in self.strips:
-            strip.clear()
-            strip.show()
+    
+    def fill(self, color: Tuple[int, int, int]):
+        """Fill all LEDs with one color (requires present() to update hardware)"""
+        self.pixels[:] = color
     
     def set_brightness(self, brightness: int):
         """Set global brightness for all strips (0-255)"""
@@ -230,30 +229,35 @@ class LEDController:
         return self.strip_map.get(strip_id)
     
     def set_stem_pixels(self, colors: np.ndarray):
-        """Set pixels for the stem interior only"""
+        """Set pixels for the stem interior only (requires present() to update hardware)"""
         strip = self.strip_map.get('stem_interior')
         if strip:
             try:
                 if len(colors) != strip.led_count:
                     logger.warning(f"Stem pixels: expected {strip.led_count} pixels, got {len(colors)}")
-                strip.set_pixels(colors)
-                strip.show()
+                # Update main pixel buffer
+                start = strip.led_start
+                end = strip.led_end + 1
+                self.pixels[start:end] = colors[:strip.led_count]
             except Exception as e:
-                logger.error(f"Failed to update stem pixels: {e}")
+                logger.error(f"Failed to set stem pixels: {e}")
     
     def set_cap_pixels(self, colors: np.ndarray):
-        """Set pixels for the cap exterior only"""
+        """Set pixels for the cap exterior only (requires present() to update hardware)"""
         strip = self.strip_map.get('cap_exterior')
         if strip:
             try:
                 if len(colors) != strip.led_count:
                     logger.warning(f"Cap pixels: expected {strip.led_count} pixels, got {len(colors)}")
-                strip.set_pixels(colors)
-                strip.show()
+                # Update main pixel buffer
+                start = strip.led_start
+                end = strip.led_end + 1
+                self.pixels[start:end] = colors[:strip.led_count]
             except Exception as e:
-                logger.error(f"Failed to update cap pixels: {e}")
+                logger.error(f"Failed to set cap pixels: {e}")
     
     def cleanup(self):
         """Clean shutdown"""
         self.clear()
+        self.present()
         logger.info("LED Controller shutdown complete")

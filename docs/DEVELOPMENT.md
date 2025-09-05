@@ -81,11 +81,12 @@ The `LEDController` manages both SPI channels as one logical display:
 ```python
 controller = LEDController("config/led_config.yaml")
 controller.set_pixels(pixel_array)  # 700x3 numpy array
-controller.update()                 # Push to hardware
+controller.present()                # Push to hardware
 
-# Zone-specific updates
+# Zone-specific updates (atomic - both updated before present)
 controller.set_stem_pixels(stem_array)  # 250 LEDs
-controller.set_cap_pixels(cap_array)    # 450 LEDs
+controller.set_cap_pixels(cap_array)    # 450 LEDs  
+controller.present()                    # Push both zones to hardware
 ```
 
 ### Configuration Files

@@ -45,9 +45,9 @@ def run_comprehensive_test(controller):
                                   ("BLUE", (0, 0, 255))]:
             print(f"     {color_name}")
             stem.fill(color)
-            stem.show()
+            stem.present()
             cap.clear()
-            cap.show()  # Keep cap off
+            cap.present()  # Keep cap off
             time.sleep(5)
         
         print("\n1.2 White brightness test (1 second each)...")
@@ -55,7 +55,7 @@ def run_comprehensive_test(controller):
             print(f"     White at {percent}")
             stem.set_brightness(brightness)
             stem.fill((255, 255, 255))
-            stem.show()
+            stem.present()
             time.sleep(1)
         stem.set_brightness(128)  # Reset to default
         
@@ -70,9 +70,9 @@ def run_comprehensive_test(controller):
                                   ("BLUE", (0, 0, 255))]:
             print(f"     {color_name}")
             stem.clear()
-            stem.show()  # Keep stem off
+            stem.present()  # Keep stem off
             cap.fill(color)
-            cap.show()
+            cap.present()
             time.sleep(5)
         
         print("\n2.2 White brightness test (1 second each)...")
@@ -80,7 +80,7 @@ def run_comprehensive_test(controller):
             print(f"     White at {percent}")
             cap.set_brightness(brightness)
             cap.fill((255, 255, 255))
-            cap.show()
+            cap.present()
             time.sleep(1)
         cap.set_brightness(128)  # Reset to default
         
@@ -88,6 +88,7 @@ def run_comprehensive_test(controller):
         # Clear everything
         print("\nClearing all LEDs...")
         controller.clear()
+        controller.present()
         
         print(f"\n{'='*60}")
         print("✓ ALL TESTS COMPLETE - Hardware functioning correctly!")
@@ -99,6 +100,7 @@ def run_comprehensive_test(controller):
         import traceback
         traceback.print_exc()
         controller.clear()  # Ensure LEDs are cleared on error
+        controller.present()
         return False
 
 
