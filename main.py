@@ -24,6 +24,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Constants
+FPS_LOG_INTERVAL = 5.0  # Seconds between FPS logs
+TARGET_FPS = 60  # Maximum FPS to prevent CPU waste
+
 
 class MushroomLights:
     """Main application controller"""
@@ -83,8 +87,7 @@ class MushroomLights:
         
         # Performance monitoring
         last_log_time = time.time()
-        target_fps = 60  # Maximum FPS to prevent CPU waste
-        frame_time = 1.0 / target_fps
+        frame_time = 1.0 / TARGET_FPS
         last_frame_time = time.time()
         
         try:
@@ -103,7 +106,7 @@ class MushroomLights:
                     # Continue running even if LED update fails
                 
                 # Performance monitoring
-                if current_time - last_log_time >= 5.0:  # Log every 5 seconds
+                if current_time - last_log_time >= FPS_LOG_INTERVAL:
                     fps = self.controller.get_fps()
                     logger.info(f"Pattern: {self.current_pattern_name} | FPS: {fps:.1f}")
                     last_log_time = current_time

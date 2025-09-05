@@ -13,6 +13,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Constants to avoid magic numbers
+SPI_UPDATE_DELAY = 0  # No delay for SPI updates (fixes Pi5Neo default bug)
+FPS_LOG_INTERVAL = 5.0  # Seconds between FPS logs
+
 
 class LEDStrip:
     """Manages a single LED strip on one SPI channel"""
@@ -29,6 +33,7 @@ class LEDStrip:
         # Hardware settings from config
         self.spi_speed = hardware_config.get('spi_speed_khz', 800)
         self.brightness = hardware_config.get('brightness', 128)
+        self._brightness_factor = self.brightness / 255.0  # Pre-calculate for performance
         
         # Initialize Pi5Neo strip
         try:
@@ -46,48 +51,55 @@ class LEDStrip:
             logger.error(f"Failed to initialize strip {self.id}: {e}")
             raise
     
+    def _apply_brightness(self, r: int, g: int, b: int) -> Tuple[int, int, int]:
+        """Apply brightness scaling to RGB values (internal utility)"""
+        if self.brightness == 255:
+            return r, g, b
+        # Use pre-calculated factor for performance
+        return (int(r * self._brightness_factor), 
+                int(g * self._brightness_factor), 
+                int(b * self._brightness_factor))
+    
     def set_pixel(self, index: int, color: Tuple[int, int, int]):
         """Set a single pixel color"""
         if 0 <= index < self.led_count:
-            r, g, b = color
-            # Apply brightness scaling
-            r = int(r * self.brightness / 255)
-            g = int(g * self.brightness / 255)
-            b = int(b * self.brightness / 255)
+            r, g, b = self._apply_brightness(*color)
             self.strip.set_led_color(index, r, g, b)
     
     def set_pixels(self, colors: np.ndarray):
         """Set all pixels from numpy array of RGB values"""
-        for i in range(min(len(colors), self.led_count)):
-            r, g, b = colors[i]
-            # Apply brightness scaling
-            r = int(r * self.brightness / 255)
-            g = int(g * self.brightness / 255)
-            b = int(b * self.brightness / 255)
-            self.strip.set_led_color(i, r, g, b)
+        pixel_count = min(len(colors), self.led_count)
+        
+        # Vectorized brightness scaling using pre-calculated factor
+        if self.brightness == 255:
+            scaled = colors[:pixel_count].astype(np.uint8)
+        else:
+            # Use cached brightness factor for better performance
+            scaled = (colors[:pixel_count] * self._brightness_factor).clip(0, 255).astype(np.uint8)
+        
+        # Update LED colors (API requires individual calls)
+        for i in range(pixel_count):
+            self.strip.set_led_color(i, int(scaled[i, 0]), int(scaled[i, 1]), int(scaled[i, 2]))
     
     def show(self):
         """Update the physical LEDs"""
-        self.strip.update_strip()
+        self.strip.update_strip(sleep_duration=SPI_UPDATE_DELAY)
     
     def clear(self):
         """Turn off all LEDs"""
         self.strip.fill_strip(0, 0, 0)
-        self.strip.update_strip()
+        self.strip.update_strip(sleep_duration=SPI_UPDATE_DELAY)
     
     def set_brightness(self, brightness: int):
         """Set global brightness (0-255)"""
         self.brightness = max(0, min(255, brightness))
+        self._brightness_factor = self.brightness / 255.0  # Update cached factor
     
     def fill(self, color: Tuple[int, int, int]):
         """Fill entire strip with one color"""
-        r, g, b = color
-        # Apply brightness scaling
-        r = int(r * self.brightness / 255)
-        g = int(g * self.brightness / 255)
-        b = int(b * self.brightness / 255)
+        r, g, b = self._apply_brightness(*color)
         self.strip.fill_strip(r, g, b)
-        self.strip.update_strip()
+        self.strip.update_strip(sleep_duration=SPI_UPDATE_DELAY)
 
 
 class LEDController:

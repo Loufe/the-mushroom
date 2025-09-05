@@ -3,6 +3,7 @@
 Solid Color Pattern - Simple single color pattern
 """
 
+import math
 import numpy as np
 from typing import Dict, Any
 from .base import Pattern
@@ -44,7 +45,6 @@ class BreathingPattern(Pattern):
     
     def update(self, delta_time: float) -> np.ndarray:
         # Calculate breathing intensity using sine wave
-        import math
         phase = (self.get_time() / self.params['cycle_time']) * 2 * math.pi
         # Use sine squared for smoother breathing
         intensity = (math.sin(phase) + 1) / 2  # 0 to 1
