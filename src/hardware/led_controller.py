@@ -14,7 +14,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Constants to avoid magic numbers
-SPI_UPDATE_DELAY = None  # No delay for SPI updates (None skips sleep entirely)
+SPI_UPDATE_DELAY = None  # CRITICAL: Must be None to prevent Pi5Neo's default 0.1s sleep between updates
+                         # Using 0 would still call time.sleep(0), None skips sleep entirely
 FPS_LOG_INTERVAL = 5.0  # Seconds between FPS logs
 
 
@@ -67,7 +68,11 @@ class LEDStrip:
             self.strip.set_led_color(index, r, g, b)
     
     def set_pixels(self, colors: np.ndarray):
-        """Set all pixels from numpy array of RGB values"""
+        """Set all pixels from numpy array of RGB values
+        
+        NOTE: This only updates internal state. Call show() to send to hardware.
+        Brightness is applied here before passing to Pi5Neo.
+        """
         pixel_count = min(len(colors), self.led_count)
         
         # Vectorized brightness scaling using pre-calculated factor
@@ -82,13 +87,16 @@ class LEDStrip:
             self.strip.set_led_color(i, int(scaled[i, 0]), int(scaled[i, 1]), int(scaled[i, 2]))
     
     def show(self):
-        """Update the physical LEDs"""
+        """Update the physical LEDs with current pixel state
+        
+        CRITICAL: Uses sleep_duration=None to prevent 0.1s delay.
+        Must be called after set_pixels() to actually update hardware.
+        """
         self.strip.update_strip(sleep_duration=SPI_UPDATE_DELAY)
     
     def clear(self):
-        """Turn off all LEDs"""
+        """Turn off all LEDs (requires show() to update hardware)"""
         self.strip.fill_strip(0, 0, 0)
-        self.strip.update_strip(sleep_duration=SPI_UPDATE_DELAY)
     
     def set_brightness(self, brightness: int):
         """Set global brightness (0-255)"""
@@ -96,10 +104,12 @@ class LEDStrip:
         self._brightness_factor = self.brightness / 255.0  # Update cached factor
     
     def fill(self, color: Tuple[int, int, int]):
-        """Fill entire strip with one color"""
+        """Fill entire strip with one color
+        
+        NOTE: Only updates internal state. Call show() to send to hardware.
+        """
         r, g, b = self._apply_brightness(*color)
         self.strip.fill_strip(r, g, b)
-        self.strip.update_strip(sleep_duration=SPI_UPDATE_DELAY)
 
 
 class LEDController:
@@ -189,10 +199,14 @@ class LEDController:
             self.last_fps_time = current_time
     
     def clear(self):
-        """Clear all LEDs"""
+        """Clear all LEDs
+        
+        NOTE: Immediately updates hardware for all strips.
+        """
         self.pixels.fill(0)
         for strip in self.strips:
             strip.clear()
+            strip.show()
     
     def set_brightness(self, brightness: int):
         """Set global brightness for all strips (0-255)"""

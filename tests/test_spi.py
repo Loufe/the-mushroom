@@ -1,178 +1,194 @@
 #!/usr/bin/env python3
 """
 SPI LED Test Script for Raspberry Pi 5
-Tests dual SPI channels with Pi5Neo library
+Tests LED hardware using production LEDController abstraction
 Run with: sudo python3 test_spi.py
 """
 
-from pi5neo import Pi5Neo
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.hardware.led_controller import LEDController
+import numpy as np
 import time
 import argparse
-import sys
 
-def test_strip(spi_device, led_count, name="Strip"):
-    """Test a single LED strip on SPI"""
-    print(f"\n{'='*50}")
-    print(f"Testing {name}: {spi_device} with {led_count} LEDs")
-    print(f"{'='*50}")
+def run_comprehensive_test(controller):
+    """Run comprehensive LED hardware test"""
+    print("\n" + "="*60)
+    print("LED HARDWARE TEST - Using Production Controller")
+    print("="*60)
     
     try:
-        # Initialize strip
-        print(f"Initializing {spi_device}...")
-        strip = Pi5Neo(spi_device, led_count, 800)
+        # Get both strips
+        stem = controller.strip_map.get('stem_interior')
+        cap = controller.strip_map.get('cap_exterior')
         
-        # Test 1: All RED
-        print("1. Testing RED...")
-        strip.fill_strip(255, 0, 0)
-        strip.update_strip()
-        time.sleep(5)
+        if not stem or not cap:
+            print("✗ Could not find required strips in controller")
+            return False
         
-        # Test 2: All GREEN
-        print("2. Testing GREEN...")
-        strip.fill_strip(0, 255, 0)
-        strip.update_strip()
-        time.sleep(5)
+        print(f"\nConfiguration:")
+        print(f"  Stem: {stem.led_count} LEDs on {stem.spi_device}")
+        print(f"  Cap:  {cap.led_count} LEDs on {cap.spi_device}")
+        print(f"  Total: {controller.total_leds} LEDs")
         
-        # Test 3: All BLUE
-        print("3. Testing BLUE...")
-        strip.fill_strip(0, 0, 255)
-        strip.update_strip()
-        time.sleep(5)
+        # Phase 1: Test Stem Strip
+        print(f"\n{'='*60}")
+        print("PHASE 1: Testing Stem Interior Strip")
+        print(f"{'='*60}")
         
-        # Test 4: WHITE with 5 brightness levels
-        print("4. Testing WHITE (5 brightness levels)...")
-        brightness_levels = [
-            (25, "10%"),
-            (64, "25%"),
-            (128, "50%"),
-            (192, "75%"),
-            (255, "100%")
-        ]
-        for brightness, percent in brightness_levels:
-            print(f"   - Brightness {percent}")
-            strip.fill_strip(brightness, brightness, brightness)
-            strip.update_strip()
+        print("\n1.1 Basic colors (5 seconds each)...")
+        for color_name, color in [("RED", (255, 0, 0)), 
+                                  ("GREEN", (0, 255, 0)), 
+                                  ("BLUE", (0, 0, 255))]:
+            print(f"     {color_name}")
+            stem.fill(color)
+            stem.show()
+            cap.clear()
+            cap.show()  # Keep cap off
+            time.sleep(5)
+        
+        print("\n1.2 White brightness test (1 second each)...")
+        for brightness, percent in [(25, "10%"), (64, "25%"), (128, "50%"), (192, "75%"), (255, "100%")]:
+            print(f"     White at {percent}")
+            stem.set_brightness(brightness)
+            stem.fill((255, 255, 255))
+            stem.show()
             time.sleep(1)
+        stem.set_brightness(128)  # Reset to default
         
-        # Clear at end
-        print("5. Clearing...")
-        strip.fill_strip(0, 0, 0)
-        strip.update_strip()
+        # Phase 2: Test Cap Strip
+        print(f"\n{'='*60}")
+        print("PHASE 2: Testing Cap Exterior Strip")
+        print(f"{'='*60}")
         
-        print(f"✓ {name} test complete!")
+        print("\n2.1 Basic colors (5 seconds each)...")
+        for color_name, color in [("RED", (255, 0, 0)), 
+                                  ("GREEN", (0, 255, 0)), 
+                                  ("BLUE", (0, 0, 255))]:
+            print(f"     {color_name}")
+            stem.clear()
+            stem.show()  # Keep stem off
+            cap.fill(color)
+            cap.show()
+            time.sleep(5)
+        
+        print("\n2.2 White brightness test (1 second each)...")
+        for brightness, percent in [(25, "10%"), (64, "25%"), (128, "50%"), (192, "75%"), (255, "100%")]:
+            print(f"     White at {percent}")
+            cap.set_brightness(brightness)
+            cap.fill((255, 255, 255))
+            cap.show()
+            time.sleep(1)
+        cap.set_brightness(128)  # Reset to default
+        
+        # Phase 3: Test Both Together
+        print(f"\n{'='*60}")
+        print("PHASE 3: Testing Both Strips Together")
+        print(f"{'='*60}")
+        
+        print("\n3.1 Complementary colors...")
+        combos = [
+            ("Stem RED, Cap BLUE", (255, 0, 0), (0, 0, 255)),
+            ("Stem GREEN, Cap MAGENTA", (0, 255, 0), (255, 0, 255)),
+            ("Both WHITE", (255, 255, 255), (255, 255, 255))
+        ]
+        for desc, stem_color, cap_color in combos:
+            print(f"     {desc}")
+            stem.fill(stem_color)
+            stem.show()
+            cap.fill(cap_color)
+            cap.show()
+            time.sleep(2)
+        
+        print("\n3.2 Controller pixel array test (gradient)...")
+        pixels = np.zeros((controller.total_leds, 3), dtype=np.uint8)
+        
+        # Gradient across entire mushroom
+        for i in range(controller.total_leds):
+            t = i / controller.total_leds
+            pixels[i] = interpolate_color((255, 0, 128), (0, 128, 255), t)
+        
+        controller.set_pixels(pixels)
+        controller.update()
+        time.sleep(3)
+        
+        print("\n3.3 Alternating pattern...")
+        for i in range(4):
+            if i % 2 == 0:
+                stem.fill(PALETTES['fire'][0])
+                stem.show()
+                cap.fill(PALETTES['ocean'][0])
+                cap.show()
+            else:
+                stem.fill(PALETTES['ocean'][0])
+                stem.show()
+                cap.fill(PALETTES['fire'][0])
+                cap.show()
+            time.sleep(0.5)
+        
+        # Clear everything
+        print("\nClearing all LEDs...")
+        controller.clear()
+        
+        print(f"\n{'='*60}")
+        print("✓ ALL TESTS COMPLETE - Hardware functioning correctly!")
+        print(f"{'='*60}")
         return True
         
     except Exception as e:
-        print(f"✗ Error testing {name}: {e}")
-        return False
-
-
-def test_dual_strips():
-    """Test both SPI channels simultaneously"""
-    print("\n" + "="*50)
-    print("Testing Dual SPI Strips")
-    print("="*50)
-    
-    try:
-        # Initialize both strips
-        print("Initializing both SPI channels...")
-        stem = Pi5Neo('/dev/spidev1.0', 250, 800)  # Stem interior
-        cap = Pi5Neo('/dev/spidev0.0', 450, 800)   # Cap exterior
-        
-        print("\n1. Stem RED, Cap BLUE...")
-        stem.fill_strip(255, 0, 0)
-        stem.update_strip()
-        cap.fill_strip(0, 0, 255)
-        cap.update_strip()
-        time.sleep(1)
-        
-        print("2. Stem GREEN, Cap YELLOW...")
-        stem.fill_strip(0, 255, 0)
-        stem.update_strip()
-        cap.fill_strip(255, 255, 0)
-        cap.update_strip()
-        time.sleep(1)
-        
-        print("3. Both WHITE (dim)...")
-        stem.fill_strip(64, 64, 64)
-        stem.update_strip()
-        cap.fill_strip(64, 64, 64)
-        cap.update_strip()
-        time.sleep(1)
-        
-        print("4. Alternating pattern...")
-        for _ in range(3):
-            stem.fill_strip(255, 0, 128)
-            stem.update_strip()
-            cap.fill_strip(0, 128, 255)
-            cap.update_strip()
-            time.sleep(0.5)
-            
-            stem.fill_strip(0, 128, 255)
-            stem.update_strip()
-            cap.fill_strip(255, 0, 128)
-            cap.update_strip()
-            time.sleep(0.5)
-        
-        # Clear both
-        print("5. Clearing both...")
-        stem.fill_strip(0, 0, 0)
-        stem.update_strip()
-        cap.fill_strip(0, 0, 0)
-        cap.update_strip()
-        
-        print("✓ Dual strip test complete!")
-        return True
-        
-    except Exception as e:
-        print(f"✗ Error in dual strip test: {e}")
+        print(f"\n✗ Test failed with error: {e}")
+        import traceback
+        traceback.print_exc()
+        controller.clear()  # Ensure LEDs are cleared on error
         return False
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Test Pi5Neo LED strips on Raspberry Pi 5')
-    parser.add_argument('--mode', choices=['stem', 'cap', 'both', 'dual'], 
-                       default='both',
-                       help='Test mode: stem only, cap only, both sequential, or dual simultaneous')
-    parser.add_argument('--count', type=int, default=10,
-                       help='Number of LEDs to test (for single strip tests)')
+    parser = argparse.ArgumentParser(description='Test LED hardware using production controller')
+    parser.add_argument('--config', '-c',
+                       default='config/led_config.yaml',
+                       help='Path to LED configuration file')
+    parser.add_argument('--brightness', '-b',
+                       type=int,
+                       default=128,
+                       help='Global brightness (0-255)')
     
     args = parser.parse_args()
     
-    print("\n" + "="*50)
-    print("Raspberry Pi 5 SPI LED Test")
-    print("Using Pi5Neo Library")
-    print("="*50)
+    print("\n" + "="*60)
+    print("Raspberry Pi 5 LED Hardware Test")
+    print("Using Production LEDController")
+    print("="*60)
     print("\nIMPORTANT: Run with sudo!")
     print("Make sure SPI is enabled in dietpi-config")
-    print("Check that /dev/spidev0.0 and /dev/spidev1.0 exist\n")
+    print("Check that /dev/spidev0.0 and /dev/spidev1.0 exist")
     
-    results = {}
-    
-    if args.mode == 'stem':
-        results['stem'] = test_strip('/dev/spidev1.0', args.count, "Stem Interior")
-    elif args.mode == 'cap':
-        results['cap'] = test_strip('/dev/spidev0.0', args.count, "Cap Exterior")
-    elif args.mode == 'both':
-        # Test full configured counts
-        results['stem'] = test_strip('/dev/spidev1.0', 250, "Stem Interior")
-        time.sleep(1)
-        results['cap'] = test_strip('/dev/spidev0.0', 450, "Cap Exterior")
-    elif args.mode == 'dual':
-        results['dual'] = test_dual_strips()
-    
-    # Summary
-    print("\n" + "="*50)
-    print("Test Summary:")
-    print("="*50)
-    for name, success in results.items():
-        status = "✓ PASS" if success else "✗ FAIL"
-        print(f"  {name}: {status}")
-    
-    print("\nTest complete!")
-    
-    # Exit with error if any test failed
-    if not all(results.values()):
+    try:
+        # Initialize controller using production code
+        print(f"\nInitializing LED Controller from {args.config}...")
+        controller = LEDController(args.config)
+        
+        # Set brightness if specified
+        if args.brightness != 128:
+            print(f"Setting global brightness to {args.brightness}")
+            controller.set_brightness(args.brightness)
+        
+        # Run comprehensive test
+        success = run_comprehensive_test(controller)
+        
+        # Clean shutdown
+        controller.cleanup()
+        
+        # Exit with appropriate code
+        sys.exit(0 if success else 1)
+        
+    except Exception as e:
+        print(f"\n✗ Failed to initialize controller: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 
