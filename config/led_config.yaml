@@ -30,5 +30,11 @@ hardware:
 performance:
   target_fps: 30  # Minimum acceptable FPS
   max_fps: 60     # Target FPS for smooth animations
-  audio_buffer_size: 64
-  audio_sample_rate: 44100
+  
+# Audio settings for reactive patterns
+audio:
+  enabled: false          # Set to true to enable audio capture
+  device: "USB"          # "USB" for auto-detect, or specific device name
+  sample_rate: 44100     # Audio sample rate in Hz
+  buffer_size: 512       # Audio buffer size in samples
+  channels: 1            # Mono input

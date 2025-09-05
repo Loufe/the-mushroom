@@ -25,8 +25,8 @@ performance:
   fps_logging: true        # Log FPS every 5 seconds
   log_interval: 5          # Seconds between FPS logs
   
-# Future audio-reactive settings (not yet implemented)
+# Audio-reactive settings
 audio:
-  enabled: false
-  device: "default"
-  sensitivity: 0.5
+  enabled: false          # Set to true to enable audio input
+  device: "USB"          # "USB" for auto-detect, or specific device name
+  sensitivity: 0.5       # Audio sensitivity for reactive patterns (0.0-1.0)

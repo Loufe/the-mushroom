@@ -16,6 +16,8 @@ sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
 from hardware.led_controller import LEDController
 from patterns import PatternRegistry
+from audio.device import AudioDevice
+from audio.stream import AudioStream
 
 # Setup logging
 logging.basicConfig(
@@ -37,6 +39,34 @@ class MushroomLights:
         
         # Initialize LED controller
         self.controller = LEDController(config_path)
+        
+        # Load config for audio settings
+        import yaml
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        
+        # Initialize audio if enabled
+        self.audio_stream = None
+        audio_config = config.get('audio', {})
+        if audio_config.get('enabled', False):
+            logger.info("Initializing audio capture...")
+            try:
+                # Find USB audio device
+                device_id = AudioDevice.find_usb_device(audio_config.get('device', 'USB'))
+                if device_id is not None:
+                    # Create audio stream
+                    audio_config['device_id'] = device_id
+                    self.audio_stream = AudioStream(audio_config)
+                    if self.audio_stream.start():
+                        logger.info("Audio capture started successfully")
+                    else:
+                        logger.warning("Failed to start audio stream")
+                        self.audio_stream = None
+                else:
+                    logger.warning("No USB audio device found")
+            except Exception as e:
+                logger.error(f"Audio initialization failed: {e}")
+                self.audio_stream = None
         
         # Pattern registry
         self.registry = PatternRegistry()
@@ -123,6 +153,8 @@ class MushroomLights:
         finally:
             # Clean shutdown
             logger.info("Shutting down...")
+            if self.audio_stream:
+                self.audio_stream.stop()
             self.controller.cleanup()
             logger.info("Shutdown complete")
 
@@ -160,8 +192,19 @@ def main():
         action='store_true',
         help='Ignore startup config file'
     )
+    parser.add_argument(
+        '--list-patterns',
+        action='store_true',
+        help='List available patterns and exit'
+    )
     
     args = parser.parse_args()
+    
+    # Handle list patterns request
+    if args.list_patterns:
+        for pattern in available_patterns:
+            print(pattern)
+        sys.exit(0)
     
     # Load startup configuration if it exists and not disabled
     startup_pattern = 'rainbow_wave'
