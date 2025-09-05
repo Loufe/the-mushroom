@@ -84,50 +84,6 @@ def run_comprehensive_test(controller):
             time.sleep(1)
         cap.set_brightness(128)  # Reset to default
         
-        # Phase 3: Test Both Together
-        print(f"\n{'='*60}")
-        print("PHASE 3: Testing Both Strips Together")
-        print(f"{'='*60}")
-        
-        print("\n3.1 Complementary colors...")
-        combos = [
-            ("Stem RED, Cap BLUE", (255, 0, 0), (0, 0, 255)),
-            ("Stem GREEN, Cap MAGENTA", (0, 255, 0), (255, 0, 255)),
-            ("Both WHITE", (255, 255, 255), (255, 255, 255))
-        ]
-        for desc, stem_color, cap_color in combos:
-            print(f"     {desc}")
-            stem.fill(stem_color)
-            stem.show()
-            cap.fill(cap_color)
-            cap.show()
-            time.sleep(2)
-        
-        print("\n3.2 Controller pixel array test (gradient)...")
-        pixels = np.zeros((controller.total_leds, 3), dtype=np.uint8)
-        
-        # Gradient across entire mushroom
-        for i in range(controller.total_leds):
-            t = i / controller.total_leds
-            pixels[i] = interpolate_color((255, 0, 128), (0, 128, 255), t)
-        
-        controller.set_pixels(pixels)
-        controller.update()
-        time.sleep(3)
-        
-        print("\n3.3 Alternating pattern...")
-        for i in range(4):
-            if i % 2 == 0:
-                stem.fill(PALETTES['fire'][0])
-                stem.show()
-                cap.fill(PALETTES['ocean'][0])
-                cap.show()
-            else:
-                stem.fill(PALETTES['ocean'][0])
-                stem.show()
-                cap.fill(PALETTES['fire'][0])
-                cap.show()
-            time.sleep(0.5)
         
         # Clear everything
         print("\nClearing all LEDs...")

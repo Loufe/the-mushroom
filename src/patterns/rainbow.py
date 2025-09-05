@@ -7,7 +7,7 @@ import numpy as np
 from typing import Dict, Any
 from .base import Pattern
 from .registry import PatternRegistry
-from ..effects.colors import hsv_to_rgb
+from effects.colors import hsv_to_rgb
 
 
 @PatternRegistry.register("rainbow_wave")

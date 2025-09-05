@@ -353,8 +353,8 @@ test_hardware() {
     
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         if [ -f "${PROJECT_DIR}/tests/test_spi.py" ]; then
-            echo -e "${GREEN}Running LED test (10 LEDs per strip)...${NC}"
-            sudo "$VENV_PATH/bin/python" "${PROJECT_DIR}/tests/test_spi.py" --count 10
+            echo -e "${GREEN}Running LED test...${NC}"
+            sudo "$VENV_PATH/bin/python" "${PROJECT_DIR}/tests/test_spi.py"
             
             echo ""
             read -p "Did the LEDs flash correctly? (y/n): " -n 1 -r
