@@ -1,12 +1,13 @@
 # Claude Code Context
 
 ## Critical Constraints
-- **Hardware**: Raspberry Pi 5 only (Pi5Neo library, not CircuitPython)
-- **LEDs**: Exactly 700 WS2811 pixels
-  - Cap exterior: 450 LEDs on SPI0 (GPIO 10, Pin 19)
-  - Stem interior: 250 LEDs on SPI1 (GPIO 20, Pin 38)
-- **Power**: 12V system, requires sudo for GPIO access
+- **Hardware**: Raspberry Pi 5 only (Pi5Neo library using spidev)
+- **LEDs**: Exactly 700 WS2811 pixels (GRB color order)
+  - Cap exterior: 450 LEDs on SPI0 (GPIO 10, Pin 19, /dev/spidev0.0)
+  - Stem interior: 250 LEDs on SPI1 (GPIO 20, Pin 38, /dev/spidev1.0)
+- **Power**: 12V system, requires sudo for GPIO/SPI access
 - **OS**: DietPi preferred (lighter than Raspberry Pi OS)
+- **Protocol**: 800kHz SPI with bitstream encoding (0xC0=LOW, 0xF8=HIGH)
 
 ## Quick Commands
 ```bash
@@ -36,7 +37,7 @@ sudo systemctl restart mushroom-lights
 
 ## Project Structure
 - `main.py` - Entry point and pattern management
-- `src/hardware/` - LED controller abstraction
+- `src/hardware/led_controller.py` - Pi5Neo wrapper with dual SPI support
 - `src/patterns/` - Pattern implementations (auto-registered)
-- `config/` - YAML configurations
-- `tests/` - Hardware validation scripts
+- `config/led_config.yaml` - Strip definitions and hardware settings
+- `tests/test_spi.py` - Hardware validation scripts

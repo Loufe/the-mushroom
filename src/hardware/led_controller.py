@@ -260,4 +260,14 @@ class LEDController:
         """Clean shutdown"""
         self.clear()
         self.present()
+        
+        # Close SPI devices
+        for strip in self.strips:
+            try:
+                if hasattr(strip.strip, 'spi') and strip.strip.spi:
+                    strip.strip.spi.close()
+                    logger.info(f"Closed SPI device for strip {strip.id}")
+            except Exception as e:
+                logger.error(f"Error closing SPI for strip {strip.id}: {e}")
+        
         logger.info("LED Controller shutdown complete")
