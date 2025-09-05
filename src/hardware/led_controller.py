@@ -14,7 +14,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Constants to avoid magic numbers
-SPI_UPDATE_DELAY = 0  # No delay for SPI updates (fixes Pi5Neo default bug)
+SPI_UPDATE_DELAY = None  # No delay for SPI updates (None skips sleep entirely)
 FPS_LOG_INTERVAL = 5.0  # Seconds between FPS logs
 
 

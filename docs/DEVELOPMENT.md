@@ -152,7 +152,7 @@ logger.info(f"Pattern params: {self.params}")
 - **Testing**: Use reduced LED counts during development
 
 ### Performance Optimization
-- Target 30+ FPS with all 700 LEDs
+- Target 30 FPS minimum, 60 FPS target with all 700 LEDs
 - Keep CPU usage under 30%
 - Monitor temperature (should stay under 60°C with cooling)
 - Use numpy vectorization over Python loops

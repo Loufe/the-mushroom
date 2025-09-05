@@ -24,7 +24,7 @@ sudo systemctl restart mushroom-lights
 ```
 
 ## Performance Targets
-- 30+ FPS with all 700 LEDs
+- 30 FPS minimum, 60 FPS target with all 700 LEDs
 - <30% CPU usage on Pi 5
 - <60°C with active cooling
 - <21ms update time for full strip

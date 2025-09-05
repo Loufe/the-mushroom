@@ -28,7 +28,7 @@ hardware:
 
 # Performance settings  
 performance:
-  target_fps: 30
-  max_fps: 60
+  target_fps: 30  # Minimum acceptable FPS
+  max_fps: 60     # Target FPS for smooth animations
   audio_buffer_size: 64
   audio_sample_rate: 44100

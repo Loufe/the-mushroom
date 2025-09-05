@@ -379,19 +379,42 @@ test_hardware() {
 # Function to setup autostart
 setup_autostart() {
     echo -e "\n${BLUE}Autostart Configuration${NC}"
-    read -p "Setup automatic startup on boot? (y/n): " -n 1 -r
-    echo
     
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        if [ -f "${PROJECT_DIR}/scripts/setup_autostart.sh" ]; then
-            echo -e "${GREEN}Running autostart setup script...${NC}"
-            sudo bash "${PROJECT_DIR}/scripts/setup_autostart.sh"
+    # Check if service already exists
+    if systemctl list-unit-files | grep -q "^mushroom-lights.service"; then
+        echo -e "${GREEN}✓ Autostart service already configured${NC}"
+        
+        if systemctl is-active --quiet mushroom-lights; then
+            echo -e "${GREEN}✓ Service is currently running${NC}"
+        elif systemctl is-enabled --quiet mushroom-lights; then
+            echo -e "${YELLOW}○ Service is enabled but not running${NC}"
         else
-            echo -e "${YELLOW}Autostart script not found${NC}"
+            echo -e "${YELLOW}○ Service exists but is disabled${NC}"
+        fi
+        
+        read -p "Reconfigure autostart service? (y/n): " -n 1 -r
+        echo
+        
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}Keeping existing autostart configuration${NC}"
+            return 0
         fi
     else
-        echo -e "${YELLOW}Skipping autostart setup${NC}"
-        echo "You can set it up later with: sudo bash scripts/setup_autostart.sh"
+        read -p "Setup automatic startup on boot? (y/n): " -n 1 -r
+        echo
+        
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}Skipping autostart setup${NC}"
+            echo "You can set it up later with: sudo bash scripts/setup_autostart.sh"
+            return 0
+        fi
+    fi
+    
+    if [ -f "${PROJECT_DIR}/scripts/setup_autostart.sh" ]; then
+        echo -e "${GREEN}Running autostart setup script...${NC}"
+        sudo bash "${PROJECT_DIR}/scripts/setup_autostart.sh"
+    else
+        echo -e "${YELLOW}Autostart script not found${NC}"
     fi
 }
 

@@ -5,6 +5,9 @@
 # LED Control
 pi5neo  # Pi 5 specific LED library
 
+# Color Processing
+opencv-python-headless  
+
 # Audio Processing  
 sounddevice
 numpy

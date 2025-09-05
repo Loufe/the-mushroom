@@ -4,6 +4,7 @@ Color utilities and predefined palettes for the mushroom
 """
 
 import numpy as np
+import cv2
 from typing import Tuple, List
 
 
@@ -111,3 +112,40 @@ def fade(pixels: np.ndarray, fade_amount: float) -> np.ndarray:
     """
     fade_amount = np.clip(fade_amount, 0.0, 1.0)
     return (pixels * (1.0 - fade_amount)).astype(np.uint8)
+
+
+def hsv_to_rgb(h: np.ndarray, s: float = 1.0, v: float = 1.0) -> np.ndarray:
+    """
+    Convert HSV to RGB using OpenCV for optimal performance
+    
+    Args:
+        h: Hue values (0-360) as numpy array
+        s: Saturation (0-1) as scalar
+        v: Value/brightness (0-1) as scalar
+        
+    Returns:
+        RGB array of shape (len(h), 3) with values 0-255
+    """
+    if not isinstance(h, np.ndarray) or h.size == 0:
+        return np.zeros((0, 3), dtype=np.uint8)
+    
+    # Ensure valid ranges
+    s = np.clip(s, 0.0, 1.0)
+    v = np.clip(v, 0.0, 1.0)
+    
+    # OpenCV uses H: 0-179, S: 0-255, V: 0-255
+    h_cv = ((h % 360) / 2).astype(np.uint8)  # Convert 0-360 to 0-179
+    s_cv = int(s * 255)
+    v_cv = int(v * 255)
+    
+    # Create HSV array with shape (1, n_pixels, 3)
+    hsv = np.stack([h_cv, 
+                    np.full_like(h_cv, s_cv),
+                    np.full_like(h_cv, v_cv)], axis=-1)
+    hsv = hsv.reshape(1, -1, 3)
+    
+    # Convert to RGB using OpenCV
+    rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+    
+    # Reshape back to (n_pixels, 3)
+    return rgb.reshape(-1, 3)

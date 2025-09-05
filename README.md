@@ -5,7 +5,7 @@ Interactive LED sculpture controller for a 14ft mushroom with 700 WS2811 LEDs.
 ## Features
 - 700 WS2811 bullet pixels (450 cap, 250 stem)
 - Dual SPI channels for parallel control
-- 30+ FPS real-time patterns
+- 30 FPS minimum, 60 FPS target real-time patterns
 - Auto-start service on boot
 - Extensible pattern system
 - Future: Audio-reactive modes

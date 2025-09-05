@@ -79,6 +79,66 @@ fi
 
 echo -e "\n${GREEN}Creating systemd service...${NC}"
 
+# Check if service file already exists
+if [ -f "$SERVICE_FILE" ]; then
+    echo -e "${YELLOW}Service file already exists at: $SERVICE_FILE${NC}"
+    
+    # Show current service status
+    if systemctl is-active --quiet ${SERVICE_NAME}; then
+        echo -e "${GREEN}✓ Service is currently running${NC}"
+    elif systemctl is-enabled --quiet ${SERVICE_NAME}; then
+        echo -e "${YELLOW}○ Service is enabled but not running${NC}"
+    else
+        echo -e "${YELLOW}○ Service exists but is disabled${NC}"
+    fi
+    
+    read -p "Overwrite existing service file? (y/n): " -n 1 -r
+    echo
+    
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}Keeping existing service file${NC}"
+        echo -e "${YELLOW}Skipping service creation - proceeding with reload/restart options${NC}"
+        
+        # Still offer to reload and restart if they didn't overwrite
+        echo -e "\n${GREEN}Reloading systemd...${NC}"
+        systemctl daemon-reload
+        
+        # Ask if they want to restart the service
+        echo ""
+        read -p "Do you want to restart the service with new config? (y/n): " RESTART_NOW
+        
+        if [[ $RESTART_NOW =~ ^[Yy]$ ]]; then
+            echo -e "\n${GREEN}Restarting ${SERVICE_NAME} service...${NC}"
+            systemctl restart ${SERVICE_NAME}.service
+            sleep 2
+            
+            if systemctl is-active --quiet ${SERVICE_NAME}.service; then
+                echo -e "${GREEN}✓ Service restarted successfully!${NC}"
+            else
+                echo -e "${RED}✗ Service failed to restart. Check logs with:${NC}"
+                echo -e "  sudo journalctl -u ${SERVICE_NAME} -n 50"
+            fi
+        fi
+        
+        # Jump to the end without creating new service
+        echo -e "\n${GREEN}================================${NC}"
+        echo -e "${GREEN}Update Complete!${NC}"
+        echo -e "${GREEN}================================${NC}\n"
+        
+        echo "Useful commands:"
+        echo -e "  ${YELLOW}Check status:${NC}  sudo systemctl status ${SERVICE_NAME}"
+        echo -e "  ${YELLOW}View logs:${NC}     sudo journalctl -u ${SERVICE_NAME} -f"
+        echo -e "  ${YELLOW}Restart:${NC}       sudo systemctl restart ${SERVICE_NAME}"
+        echo ""
+        echo "Configuration file: ${STARTUP_CONFIG}"
+        echo ""
+        echo "To change pattern or brightness:"
+        echo "  1. Edit: nano ${STARTUP_CONFIG}"
+        echo "  2. Restart: sudo systemctl restart ${SERVICE_NAME}"
+        exit 0
+    fi
+fi
+
 # Create systemd service file
 cat > "$SERVICE_FILE" << EOF
 [Unit]
