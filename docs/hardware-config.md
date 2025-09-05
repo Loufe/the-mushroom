@@ -12,7 +12,7 @@
 - **Stem Interior:** 250 LEDs on SPI1
 - **Cap Exterior:** 450 LEDs on SPI0
 - **Control:** Pi5Neo library (Pi 5 compatible)
-- **Power:** 5V 20A minimum, injection every 100-150 LEDs
+- **Power:** 12V 20A minimum, injection every 200-300 LEDs
 
 ### SPI Configuration
 Raspberry Pi 5 uses SPI for reliable WS2811 control:
@@ -53,9 +53,9 @@ ls /dev/spidev*
 ```
 
 ### Power Distribution
-- **Supply:** 5V 20A (minimum)
-- **Per LED:** 60mA max (white, full brightness)
-- **Typical:** 10-15mA per LED (mixed colors)
+- **Supply:** 12V 20A (minimum)
+- **Per LED:** 20mA max (white, full brightness)
+- **Typical:** 5-10mA per LED (mixed colors)
 - **Injection Points:**
   - Cap: Every 150 LEDs (3 injection points)
   - Stem: Every 125 LEDs (2 injection points)
@@ -96,6 +96,6 @@ ls /dev/spidev*
 - Reduce brightness if needed
 
 ### Power Problems
-- Check voltage at injection points (4.5V minimum)
+- Check voltage at injection points (10.5V minimum)
 - Verify ground connections
 - Use thicker wire for power distribution (14-16 AWG)

@@ -13,6 +13,12 @@ class Pattern(ABC):
     """Abstract base class for all LED patterns"""
     
     def __init__(self, led_count: int, fps: float = 30.0):
+        # Validate inputs to prevent crashes
+        if led_count <= 0:
+            raise ValueError(f"LED count must be positive, got {led_count}")
+        if fps <= 0:
+            raise ValueError(f"FPS must be positive, got {fps}")
+        
         self.led_count = led_count
         self.fps = fps
         self.frame_time = 1.0 / fps

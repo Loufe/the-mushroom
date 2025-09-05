@@ -94,9 +94,17 @@ class LEDController:
     """Manages multiple LED strips as one logical display"""
     
     def __init__(self, config_path: str = "config/led_config.yaml"):
-        # Load configuration
-        with open(config_path, 'r') as f:
-            self.config = yaml.safe_load(f)
+        # Load configuration with minimal error handling
+        try:
+            with open(config_path, 'r') as f:
+                self.config = yaml.safe_load(f)
+        except (FileNotFoundError, yaml.YAMLError) as e:
+            logger.error(f"Failed to load config from {config_path}: {e}")
+            raise
+        
+        # Basic validation - just prevent cryptic errors
+        if not self.config or 'strips' not in self.config:
+            raise ValueError(f"Config missing 'strips' section in {config_path}")
         
         # Total LED count
         self.total_leds = sum(strip['led_count'] for strip in self.config['strips'])

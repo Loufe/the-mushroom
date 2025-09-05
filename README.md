@@ -59,7 +59,7 @@ sudo mushroom-env/bin/python tests/test_spi.py --mode dual
 
 ### 5. Run Main Application
 ```bash
-# After setup.sh, use the helper script:
+# Use the run.sh script to start the LED controller:
 ./run.sh
 
 # With options:

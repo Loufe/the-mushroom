@@ -26,12 +26,12 @@ Before clicking "Go" in Raspberry Pi Imager:
    ```
 
 ## Library Decision
-**Use rpi_ws281x directly** for optimal performance:
-- Efficient brightness control at DMA buffer level (no Python overhead)
-- Can handle 2700+ LEDs without performance issues
-- Lower latency for audio-reactive patterns
-- Stable, mature library (works well, doesn't need updates)
-- Direct control over timing and performance
+**Use pi5neo** for Raspberry Pi 5 compatibility:
+- Designed specifically for Pi 5's SPI interface
+- Dual SPI channel support for parallel LED control
+- No DMA conflicts with audio
+- Lower CPU overhead than PWM-based solutions
+- Direct SPI communication for reliable timing
 
 **Why not CircuitPython NeoPixel:**
 - Limited to 300 LEDs with brightness control (Python overhead)
@@ -46,12 +46,12 @@ Before clicking "Go" in Raspberry Pi Imager:
 ## Project Dependencies
 ```txt
 # requirements.txt
-rpi-ws281x==5.0.0
-sounddevice==0.4.6
-numpy==1.24.3
-scipy==1.10.1
-pyyaml==6.0.1
-psutil==5.9.5
+pi5neo
+sounddevice
+numpy
+scipy
+pyyaml
+psutil
 ```
 
 ## 3D Coordinate Mapping Validation

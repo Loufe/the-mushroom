@@ -17,6 +17,14 @@ def hsv_to_rgb(h: np.ndarray, s: float = 1.0, v: float = 1.0) -> np.ndarray:
     v: value/brightness (0-1)
     Returns RGB values 0-255
     """
+    # Input validation
+    if not isinstance(h, np.ndarray) or h.size == 0:
+        return np.zeros((0, 3), dtype=np.uint8)
+    
+    # Clip saturation and value to valid ranges
+    s = np.clip(s, 0.0, 1.0)
+    v = np.clip(v, 0.0, 1.0)
+    
     h = h % 360
     c = v * s
     x = c * (1 - np.abs((h / 60) % 2 - 1))

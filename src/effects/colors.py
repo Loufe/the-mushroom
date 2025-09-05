@@ -69,7 +69,16 @@ def gradient(colors: List[Tuple[int, int, int]],
     if len(colors) < 2:
         raise ValueError("Need at least 2 colors for gradient")
     
+    # Handle edge cases
+    if led_count <= 0:
+        return np.zeros((0, 3), dtype=np.uint8)
+    
     result = np.zeros((led_count, 3), dtype=np.uint8)
+    
+    # Special case: single LED
+    if led_count == 1:
+        result[0] = colors[0]
+        return result
     
     # Divide LEDs into segments
     segment_size = led_count / (len(colors) - 1)

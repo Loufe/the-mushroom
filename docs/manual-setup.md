@@ -8,7 +8,7 @@ After first boot and SSH connection to DietPi:
 sudo apt-get update
 sudo apt-get upgrade -y
 
-# Install build dependencies for rpi_ws281x
+# Install build dependencies for pi5neo
 sudo apt-get install -y \
     python3-pip \
     python3-venv \
@@ -42,10 +42,10 @@ pip install --upgrade pip wheel setuptools
 
 ```bash
 # Install LED control library
-pip install rpi-ws281x==5.0.0
+pip install pi5neo
 
-# Check for warnings about Pi 5 compatibility!
-# If you see GPIO warnings, we'll address them
+# This library is specifically designed for Raspberry Pi 5
+# It uses SPI instead of PWM/DMA for better compatibility
 
 # Install audio and utility libraries
 pip install sounddevice==0.4.6
@@ -55,7 +55,7 @@ pip install pyyaml==6.0.1
 pip install psutil==5.9.5
 
 # Test imports
-python3 -c "import rpi_ws281x; print('✓ LED library OK')"
+python3 -c "import pi5neo; print('✓ LED library OK')"
 python3 -c "import sounddevice; print('✓ Audio library OK')"
 python3 -c "import numpy; print('✓ NumPy OK')"
 ```
@@ -89,35 +89,29 @@ print(f'Max amplitude: {np.max(np.abs(recording)):.4f}')
 # Create simple test script
 cat > test_leds.py << 'EOF'
 #!/usr/bin/env python3
-from rpi_ws281x import PixelStrip, Color
+from pi5neo import Pi5Neo
 import time
 
 # LED strip configuration
 LED_COUNT = 10        # Test with just 10 LEDs first
-LED_PIN = 10         # GPIO10 (SPI)
-LED_FREQ_HZ = 800000 # LED signal frequency
-LED_DMA = 10         # DMA channel
-LED_BRIGHTNESS = 64  # 0-255
-LED_INVERT = False
-LED_CHANNEL = 0
+SPI_DEVICE = '/dev/spidev0.0'  # SPI0 for GPIO 10
+FREQUENCY = 800      # 800kHz for WS2811
 
-strip = PixelStrip(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, 
-                   LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
-strip.begin()
+# Create Pi5Neo strip
+strip = Pi5Neo(SPI_DEVICE, LED_COUNT, FREQUENCY)
 
 print("Testing LEDs - Red, Green, Blue cycle")
-colors = [Color(255, 0, 0), Color(0, 255, 0), Color(0, 0, 255)]
+colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
 
-for color in colors:
-    for i in range(strip.numPixels()):
-        strip.setPixelColor(i, color)
-    strip.show()
+for r, g, b in colors:
+    for i in range(LED_COUNT):
+        strip.set_pixel_rgb(i, r, g, b)
+    strip.update()
     time.sleep(1)
 
 # Clear
-for i in range(strip.numPixels()):
-    strip.setPixelColor(i, Color(0, 0, 0))
-strip.show()
+strip.fill_rgb(0, 0, 0)
+strip.update()
 print("Test complete!")
 EOF
 
@@ -157,9 +151,10 @@ exit
 - Check ALSA devices: `arecord -l`
 
 ### LED Test Fails
-- Verify wiring (GPIO 10 = Pin 19)
-- Check 74HCT125 power (needs 5V)
-- Try different DMA channel (5 or 10)
+- Verify wiring (GPIO 10 = Pin 19 for SPI0, GPIO 20 = Pin 38 for SPI1)
+- Check ground connection between Pi and LED power
+- Verify SPI device exists: ls /dev/spidev*
+- If signal issues persist, consider adding a level shifter
 
 ### Import Errors
 - Ensure virtual environment activated

@@ -363,7 +363,7 @@ test_hardware() {
                 echo -e "${GREEN}✓ Hardware test successful${NC}"
             else
                 echo -e "${YELLOW}Hardware troubleshooting tips:${NC}"
-                echo "1. Check power supply is on (5V, 20A minimum)"
+                echo "1. Check power supply is on (12V, 20A minimum)"
                 echo "2. Verify SPI connections:"
                 echo "   - Stem (250 LEDs): SPI1 on GPIO 20 (Pin 38)"
                 echo "   - Cap (450 LEDs): SPI0 on GPIO 10 (Pin 19)"
@@ -395,22 +395,6 @@ setup_autostart() {
     fi
 }
 
-# Function to create helper script
-create_helper_script() {
-    echo -e "\n${BLUE}Creating helper script...${NC}"
-    
-    cat > "${PROJECT_DIR}/run.sh" << EOF
-#!/bin/bash
-# Quick run script for Mushroom LEDs
-cd "${PROJECT_DIR}"
-source "${VENV_PATH}/bin/activate"
-sudo "${VENV_PATH}/bin/python" main.py \$@
-EOF
-    
-    chmod +x "${PROJECT_DIR}/run.sh"
-    echo -e "${GREEN}✓ Created run.sh helper script${NC}"
-}
-
 # Main setup flow
 main() {
     echo "Starting setup from: $PROJECT_DIR"
@@ -428,7 +412,6 @@ main() {
     
     # Test and configure
     test_hardware
-    create_helper_script
     setup_autostart
     
     # Final summary

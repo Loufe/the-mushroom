@@ -4,7 +4,7 @@
 - Raspberry Pi 5 with active cooling
 - DietPi OS 
 - 700 WS2811 LED pixels
-- 5V 20A+ power supply
+- 12V 20A+ power supply
 - Ethernet or WiFi for initial setup
 
 ## Installation Steps
@@ -58,11 +58,11 @@ pip install -r requirements.txt
 - Pi GND → LED ground and power supply ground (shared)
 
 **Power:**
-- 5V supply → LED power (NOT from Pi)
+- 12V supply → LED power (NOT from Pi)
 - Power injection every 100-150 LEDs
 - Common ground essential
 
-**Note on level shifting:** SPI signals are 3.3V but often work directly with WS2811 LEDs. For production reliability, consider adding a 74HCT125 level shifter.
+**Note on level shifting:** SPI signals are 3.3V but typically work directly with WS2811 LEDs. If you experience signal issues, consider adding a level shifter.
 
 ### 4. Test Installation
 
@@ -100,10 +100,10 @@ cat /boot/config.txt | grep spi  # Verify configuration
 Must use `sudo` for SPI/GPIO access
 
 **LEDs not responding:**
-- Verify 5V at LED strips
+- Verify 12V at LED strips
 - Check common ground
 - Test with single LED
-- Consider adding level shifter if unreliable
+- If signal issues persist, consider adding a level shifter
 
 **Performance monitoring:**
 ```bash
@@ -111,22 +111,19 @@ htop  # CPU usage
 vcgencmd measure_temp  # Temperature
 ```
 
-## Migration from Old Setup
+## Updating an Existing Installation
 
-If you have the old rpi-ws281x version installed:
+To update your mushroom installation:
 
 ```bash
 cd ~/the-mushroom
 source mushroom-env/bin/activate
 
-# Remove incompatible library
-pip uninstall -y rpi-ws281x
-
 # Get latest code
 git pull
 
-# Reinstall dependencies
-pip install --upgrade --force-reinstall -r requirements.txt
+# Update dependencies
+pip install --upgrade -r requirements.txt
 ```
 
 ## Technical Notes
@@ -135,6 +132,6 @@ This project uses Pi5Neo library which communicates via SPI instead of PWM/PCM. 
 - Raspberry Pi 5 compatible
 - Simpler than PWM/DMA configuration
 - Two independent LED channels
-- Often works without level shifting (though not guaranteed)
+- Direct GPIO connection typically works well
 
 The SPI approach trades some GPIO flexibility for Pi 5 compatibility and simpler setup.

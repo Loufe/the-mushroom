@@ -25,60 +25,37 @@ def test_strip(spi_device, led_count, name="Strip"):
         print("1. Testing RED...")
         strip.fill_strip(255, 0, 0)
         strip.update_strip()
-        time.sleep(1)
+        time.sleep(5)
         
         # Test 2: All GREEN
         print("2. Testing GREEN...")
         strip.fill_strip(0, 255, 0)
         strip.update_strip()
-        time.sleep(1)
+        time.sleep(5)
         
         # Test 3: All BLUE
         print("3. Testing BLUE...")
         strip.fill_strip(0, 0, 255)
         strip.update_strip()
-        time.sleep(1)
+        time.sleep(5)
         
-        # Test 4: All WHITE (dimmed)
-        print("4. Testing WHITE (dim)...")
-        strip.fill_strip(64, 64, 64)
-        strip.update_strip()
-        time.sleep(1)
-        
-        # Test 5: Chase pattern
-        print("5. Testing chase pattern...")
-        for _ in range(2):
-            for i in range(led_count):
-                # Clear all
-                strip.fill_strip(0, 0, 0)
-                # Light current LED
-                strip.set_led_color(i, 255, 255, 0)  # Yellow
-                strip.update_strip()
-                time.sleep(0.02)
-        
-        # Test 6: Rainbow gradient
-        print("6. Testing rainbow gradient...")
-        for i in range(led_count):
-            hue = (i / led_count) * 360
-            # Simple HSV to RGB conversion
-            if hue < 120:
-                r = int(255 * (120 - hue) / 120)
-                g = int(255 * hue / 120)
-                b = 0
-            elif hue < 240:
-                r = 0
-                g = int(255 * (240 - hue) / 120)
-                b = int(255 * (hue - 120) / 120)
-            else:
-                r = int(255 * (hue - 240) / 120)
-                g = 0
-                b = int(255 * (360 - hue) / 120)
-            strip.set_led_color(i, r, g, b)
-        strip.update_strip()
-        time.sleep(2)
+        # Test 4: WHITE with 5 brightness levels
+        print("4. Testing WHITE (5 brightness levels)...")
+        brightness_levels = [
+            (25, "10%"),
+            (64, "25%"),
+            (128, "50%"),
+            (192, "75%"),
+            (255, "100%")
+        ]
+        for brightness, percent in brightness_levels:
+            print(f"   - Brightness {percent}")
+            strip.fill_strip(brightness, brightness, brightness)
+            strip.update_strip()
+            time.sleep(1)
         
         # Clear at end
-        print("7. Clearing...")
+        print("5. Clearing...")
         strip.fill_strip(0, 0, 0)
         strip.update_strip()
         

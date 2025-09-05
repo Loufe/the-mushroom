@@ -3,10 +3,10 @@
 
 # Pattern to load at startup
 # Available: test, rainbow_wave, rainbow_cycle
-pattern: test
+pattern: rainbow_wave
 
 # Global brightness (0-255)
-brightness: 64
+brightness: 128
 
 # Pattern-specific parameters (optional)
 pattern_params:
