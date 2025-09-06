@@ -7,7 +7,7 @@ import numpy as np
 from typing import Dict, Any
 from .base import Pattern
 from .registry import PatternRegistry
-from effects.colors import hsv_to_rgb
+from ..effects.colors import hsv_to_rgb
 
 
 @PatternRegistry.register("rainbow_wave")
@@ -16,21 +16,23 @@ class RainbowWave(Pattern):
     
     def get_default_params(self) -> Dict[str, Any]:
         return {
-            'wave_length': 100,     # LEDs per complete rainbow
-            'speed': 50.0,          # LEDs per second travel speed
+            'rainbow_count': 1.0,   # Number of complete rainbows visible (1.0 = one full rainbow)
+            'cycle_time': 10.0,     # Seconds for pattern to complete one full cycle
             'brightness': 1.0,      # 0-1 brightness
             'saturation': 1.0,      # 0-1 color saturation
         }
     
     def update(self, delta_time: float) -> np.ndarray:
-        # Calculate position offset based on time and speed
-        offset = self.get_time() * self.params['speed']
+        # Calculate phase (0-1) based on time
+        phase = (self.get_time() / self.params['cycle_time']) % 1.0
         
-        # Create position array for all LEDs
-        positions = np.arange(self.led_count)
+        # Create normalized position array (0-1 across strip)
+        positions = np.arange(self.led_count) / self.led_count
         
-        # Calculate hue for each LED (0-360 degrees)
-        hues = ((positions + offset) / self.params['wave_length']) * 360
+        # Calculate hue for each LED
+        # rainbow_count controls how many rainbows fit across the strip
+        # phase shifts the pattern over time
+        hues = ((positions + phase) * self.params['rainbow_count'] % 1.0) * 360
         
         # Convert HSV to RGB
         self.pixels = hsv_to_rgb(

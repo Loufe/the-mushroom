@@ -250,46 +250,43 @@ cmd_list() {
     done
 }
 
-# Show help
-cmd_help() {
-    cat << EOF
-Mushroom LED Controller Management
-
-Usage: ./run.sh COMMAND [OPTIONS]
-
-Commands:
-  start [pattern] [--brightness N]  Start LED controller
-  stop                              Stop all LED processes
-  restart [pattern]                 Stop and start LED controller
-  status                           Show running status
-  test                             Run hardware test
-  list                             List available patterns
-  help                             Show this help message
-
-Examples:
-  ./run.sh start rainbow_wave --brightness 128
-  ./run.sh stop
-  ./run.sh status
-  ./run.sh test
-
-Note: Most commands require sudo for GPIO/SPI access
-EOF
+# View logs
+cmd_log() {
+    # Prefer systemd logs if service exists (even if stopped)
+    if systemctl list-units --all mushroom-lights.service 2>/dev/null | grep -q mushroom-lights; then
+        # journalctl uses less by default as pager, -e jumps to end
+        sudo journalctl -u mushroom-lights -e
+    elif [[ -f /tmp/mushroom-lights.log ]]; then
+        # Use less with +G to jump to end of file
+        less +G /tmp/mushroom-lights.log
+    else
+        echo "No logs available. Start the controller with:"
+        echo "  ./run.sh start"
+        exit 1
+    fi
 }
 
 # Show command list for no arguments
 if [ $# -eq 0 ]; then
     echo "Mushroom LED Controller"
     echo ""
-    echo "Commands:"
-    echo "  start [pattern]  - Start LED controller"
-    echo "  stop            - Stop all LED processes"
-    echo "  restart         - Restart LED controller"
-    echo "  status          - Show running status"
-    echo "  test            - Run hardware test"
-    echo "  list            - List available patterns"
-    echo "  help            - Show detailed help"
+    echo "Usage: ./run.sh COMMAND [OPTIONS]"
     echo ""
-    echo "Example: ./run.sh start rainbow_wave"
+    echo "Commands:"
+    echo "  start [pattern] [--brightness N]  Start LED controller"
+    echo "  stop                              Stop all LED processes"
+    echo "  restart [pattern]                 Restart LED controller"
+    echo "  status                           Show running status"
+    echo "  test                             Run hardware test"
+    echo "  list                             List available patterns"
+    echo "  log                              View logs in pager"
+    echo ""
+    echo "Examples:"
+    echo "  ./run.sh start rainbow_wave --brightness 128"
+    echo "  ./run.sh status"
+    echo "  ./run.sh log"
+    echo ""
+    echo "Note: Commands require sudo for GPIO/SPI access"
     exit 0
 fi
 
@@ -315,12 +312,12 @@ case "$1" in
     list)
         cmd_list
         ;;
-    help|--help|-h)
-        cmd_help
+    log)
+        cmd_log
         ;;
     *)
         echo -e "${RED}Unknown command: $1${NC}"
-        echo "Use './run.sh help' for usage information"
+        echo "Run './run.sh' without arguments for usage"
         exit 1
         ;;
 esac
