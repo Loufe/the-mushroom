@@ -18,6 +18,7 @@ class StripController:
     
     # Class constants
     WAIT_TIMEOUT_MS = 100  # Thread wait timeout in milliseconds
+    WS2811_LATCH_DELAY = 0.0001  # 100µs reset period required by WS2811 protocol
     
     def __init__(self, name: str, strip_config: dict, hardware_config: dict):
         """
@@ -293,7 +294,7 @@ class StripController:
                 self._record_metric('buffer_prep', pixel_time_ms)
                 
                 spi_start = time.perf_counter()
-                self.spi.update_strip(sleep_duration=None)
+                self.spi.update_strip(sleep_duration=self.WS2811_LATCH_DELAY)
                 spi_time_ms = (time.perf_counter() - spi_start) * 1000
                 self._record_metric('spi_transmit', spi_time_ms)
                 
@@ -328,7 +329,7 @@ class StripController:
         """Clear all LEDs on this strip"""
         try:
             self.spi.clear_strip()
-            self.spi.update_strip(sleep_duration=None)
+            self.spi.update_strip(sleep_duration=self.WS2811_LATCH_DELAY)
         except Exception as e:
             self.logger.error(f"Failed to clear {self.name} LEDs: {e}")
     
