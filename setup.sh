@@ -240,7 +240,7 @@ check_system_deps() {
     local missing_deps=()
     
     # Essential packages for building Python modules and GPIO access
-    local required_packages=("python3-venv" "build-essential" "python3-dev" "git")
+    local required_packages=("python3-venv" "build-essential" "python3-dev" "git" "libportaudio2")
     
     for pkg in "${required_packages[@]}"; do
         if ! dpkg -l | grep -q "^ii  $pkg"; then

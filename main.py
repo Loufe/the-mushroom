@@ -14,17 +14,24 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
-from hardware.led_controller import LEDController
-from patterns import PatternRegistry
-from audio.device import AudioDevice
-from audio.stream import AudioStream
-
-# Setup logging
+# Setup logging first
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+from hardware.led_controller import LEDController
+from patterns import PatternRegistry
+
+# Audio imports - requires libportaudio2 system package
+try:
+    from audio.device import AudioDevice
+    from audio.stream import AudioStream
+    AUDIO_AVAILABLE = True
+except (ImportError, OSError) as e:
+    logger.warning(f"Audio support unavailable: {e}")
+    AUDIO_AVAILABLE = False
 
 # Constants
 FPS_LOG_INTERVAL = 5.0  # Seconds between FPS logs
@@ -45,28 +52,32 @@ class MushroomLights:
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
         
-        # Initialize audio if enabled
+        # Initialize audio if enabled and available
         self.audio_stream = None
         audio_config = config.get('audio', {})
         if audio_config.get('enabled', False):
-            logger.info("Initializing audio capture...")
-            try:
-                # Find USB audio device
-                device_id = AudioDevice.find_usb_device(audio_config.get('device', 'USB'))
-                if device_id is not None:
-                    # Create audio stream
-                    audio_config['device_id'] = device_id
-                    self.audio_stream = AudioStream(audio_config)
-                    if self.audio_stream.start():
-                        logger.info("Audio capture started successfully")
+            if AUDIO_AVAILABLE:
+                logger.info("Initializing audio capture...")
+                try:
+                    # Find USB audio device
+                    device_id = AudioDevice.find_usb_device(audio_config.get('device', 'USB'))
+                    if device_id is not None:
+                        # Create audio stream
+                        audio_config['device_id'] = device_id
+                        self.audio_stream = AudioStream(audio_config)
+                        if self.audio_stream.start():
+                            logger.info("Audio capture started successfully")
+                        else:
+                            logger.warning("Failed to start audio stream")
+                            self.audio_stream = None
                     else:
-                        logger.warning("Failed to start audio stream")
-                        self.audio_stream = None
-                else:
-                    logger.warning("No USB audio device found")
-            except Exception as e:
-                logger.error(f"Audio initialization failed: {e}")
-                self.audio_stream = None
+                        logger.warning("No USB audio device found")
+                except Exception as e:
+                    logger.error(f"Audio initialization failed: {e}")
+                    self.audio_stream = None
+            else:
+                logger.warning("Audio enabled in config but PortAudio not installed")
+                logger.warning("Install with: sudo apt-get install libportaudio2")
         
         # Pattern registry
         self.registry = PatternRegistry()

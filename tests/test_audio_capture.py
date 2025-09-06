@@ -9,9 +9,21 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import time
-import sounddevice as sd
-from src.audio.device import AudioDevice
-from src.audio.stream import AudioStream
+
+try:
+    import sounddevice as sd
+    from src.audio.device import AudioDevice
+    from src.audio.stream import AudioStream
+    AUDIO_AVAILABLE = True
+except (ImportError, OSError) as e:
+    AUDIO_AVAILABLE = False
+    print(f"Error: Audio support not available - {e}")
+    print("\nTo fix this, install PortAudio:")
+    print("  sudo apt-get update")
+    print("  sudo apt-get install libportaudio2")
+    print("\nThen reinstall Python package:")
+    print("  mushroom-env/bin/pip install sounddevice")
+    sys.exit(1)
 
 
 def print_level_meter(level: float, peak: float, width: int = 40):
