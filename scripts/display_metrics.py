@@ -70,9 +70,6 @@ def main():
             print(f'\n  Pattern thread: {pattern_time:.1f}ms | SPI thread: {spi_time:.1f}ms')
         
         print()
-    
-    print('Note: Buffer Prep is typically the bottleneck due to Pi5Neo\'s per-pixel API.')
-    print('      Low wait times (<1ms) indicate good parallelism between threads.')
 
 if __name__ == '__main__':
     main()

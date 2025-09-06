@@ -32,36 +32,22 @@ class TestPattern(Pattern):
     def __init__(self, led_count: int, color=(0, 0, 0)):
         super().__init__(led_count)
         self.color = color
-        self.test_mode = 'solid'
         
     def get_default_params(self):
         return {}
     
     def update(self, delta_time: float) -> np.ndarray:
-        if self.test_mode == 'solid':
-            # Solid color
-            self.pixels[:] = self.color
-        elif self.test_mode == 'gradient':
-            # Gradient test
-            for i in range(self.led_count):
-                intensity = int((i / self.led_count) * 255)
-                self.pixels[i] = [intensity, intensity, intensity]
-        elif self.test_mode == 'chase':
-            # Chase pattern
-            self.pixels.fill(0)
-            position = int((time.time() * 100) % self.led_count)
-            self.pixels[position] = [255, 255, 255]
+        # Solid color with brightness applied
+        r, g, b = self.color
+        self.pixels[:] = [int(r * self.brightness), 
+                         int(g * self.brightness), 
+                         int(b * self.brightness)]
         
         return self.pixels
     
     def set_color(self, color):
         """Set solid color"""
         self.color = color
-        self.test_mode = 'solid'
-    
-    def set_test_mode(self, mode):
-        """Set test mode"""
-        self.test_mode = mode
 
 
 def run_comprehensive_test(controller: LEDController) -> bool:
@@ -137,48 +123,6 @@ def run_comprehensive_test(controller: LEDController) -> bool:
             cap_pattern.set_color((255, 255, 255))
             time.sleep(2)
         controller.set_cap_brightness(128)  # Reset to default
-        
-        # Phase 3: Test Both Strips Together
-        print(f"\n{'='*60}")
-        print("PHASE 3: Testing Both Strips")
-        print(f"{'='*60}")
-        
-        print("\n3.1 Both strips white...")
-        cap_pattern.set_color((255, 255, 255))
-        stem_pattern.set_color((255, 255, 255))
-        time.sleep(3)
-        
-        print("\n3.2 Complementary colors...")
-        print("     Cap: RED, Stem: GREEN")
-        cap_pattern.set_color((255, 0, 0))
-        stem_pattern.set_color((0, 255, 0))
-        time.sleep(3)
-        
-        print("     Cap: BLUE, Stem: YELLOW")
-        cap_pattern.set_color((0, 0, 255))
-        stem_pattern.set_color((255, 255, 0))
-        time.sleep(3)
-        
-        # Phase 4: Performance Test
-        print(f"\n{'='*60}")
-        print("PHASE 4: Performance Test")
-        print(f"{'='*60}")
-        
-        print("\n4.1 Chase pattern on both strips (10 seconds)...")
-        cap_pattern.set_test_mode('chase')
-        stem_pattern.set_test_mode('chase')
-        
-        # Monitor performance for 10 seconds
-        start_time = time.time()
-        last_log = start_time
-        
-        while time.time() - start_time < 10:
-            current_time = time.time()
-            if current_time - last_log >= 2:
-                stats = controller.get_stats()
-                print(f"     Cap: {stats['cap_fps']:.1f} FPS, Stem: {stats['stem_fps']:.1f} FPS")
-                last_log = current_time
-            time.sleep(0.1)
         
         # Clear everything
         print("\nClearing all LEDs...")

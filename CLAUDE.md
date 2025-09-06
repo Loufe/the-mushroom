@@ -35,17 +35,11 @@ sudo systemctl restart mushroom-lights
 - DO NOT add comments unless requested
 - PREFER editing existing patterns over creating new files
 
-## Pi5Neo Library Bottleneck
-**Critical**: Pi5Neo has no batch operations - pixels must be set individually:
-```python
-# Current performance bottleneck in strip_controller.py:
-for i in range(len(pixels)):  # Can't avoid this loop
-    self.spi.set_led_color(i, r, g, b)
-self.spi.update_strip(sleep_duration=None)  # MUST be None for speed
-```
-- Two-step: set_led_color() fills buffer, update_strip() sends via SPI
-- Library handles GRB order internally
-- No built-in brightness (applied in software before setting)
+## Performance Reality (Measured)
+**Actual bottleneck**: SPI transmission (~20ms for 450 LEDs), not buffer prep (<1ms)
+- Cap: ~48 FPS limited by hardware protocol timing
+- Stem: ~98 FPS (half the LEDs = half the time)
+- WS2811 protocol requires bitstream encoding and precise timing
 
 ## Project Structure
 - `main.py` - Entry point and pattern management
