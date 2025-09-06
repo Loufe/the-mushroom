@@ -7,7 +7,7 @@ import numpy as np
 from typing import Dict, Any
 from .base import Pattern
 from .registry import PatternRegistry
-from ..effects.colors import hsv_to_rgb
+from effects.colors import hsv_to_rgb
 
 
 @PatternRegistry.register("rainbow_wave")
@@ -32,7 +32,7 @@ class RainbowWave(Pattern):
         # Calculate hue for each LED
         # rainbow_count controls how many rainbows fit across the strip
         # phase shifts the pattern over time
-        hues = ((positions + phase) * self.params['rainbow_count'] % 1.0) * 360
+        hues = (((positions + phase) * self.params['rainbow_count']) % 1.0) * 360
         
         # Convert HSV to RGB
         self.pixels = hsv_to_rgb(
