@@ -35,6 +35,27 @@ sudo systemctl restart mushroom-lights
 - DO NOT add comments unless requested
 - PREFER editing existing patterns over creating new files
 
+## API Usage Rules
+**Patterns and Tests MUST use Controller API only:**
+```python
+# CORRECT - Use controller methods:
+controller.set_pixels(pixel_array)  # Set pixel buffer
+controller.fill((r, g, b))          # Fill all pixels
+controller.set_brightness(128)      # Set global brightness
+controller.present()                 # Push to hardware
+
+# WRONG - Never access strips directly:
+strip.fill((r, g, b))               # Bypasses controller
+strip.present()                     # Breaks abstraction
+```
+
+**Architecture Layers:**
+1. **Patterns** → Generate numpy arrays only (no hardware access)
+2. **Controller** → Manages pixel buffer, brightness, and coordination
+3. **Strips** → Internal hardware interface (not for direct use)
+
+Direct strip access breaks brightness management and buffer synchronization.
+
 ## Project Structure
 - `main.py` - Entry point and pattern management
 - `src/hardware/led_controller.py` - Pi5Neo wrapper with dual SPI support

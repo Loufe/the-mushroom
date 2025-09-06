@@ -51,13 +51,15 @@ def run_comprehensive_test(controller):
             time.sleep(5)
         
         print("\n1.2 White brightness test (1 second each)...")
+        print("     Note: Using controller API for consistent brightness")
+        white_pixels = np.full((controller.total_leds, 3), 255, dtype=np.uint8)
         for brightness, percent in [(25, "10%"), (64, "25%"), (128, "50%"), (192, "75%"), (255, "100%")]:
-            print(f"     White at {percent}")
-            stem.set_brightness(brightness)
-            stem.fill((255, 255, 255))
-            stem.present()
+            print(f"     White at {percent} brightness ({brightness}/255)")
+            controller.set_brightness(brightness)
+            controller.set_pixels(white_pixels)
+            controller.present()
             time.sleep(1)
-        stem.set_brightness(128)  # Reset to default
+        controller.set_brightness(128)  # Reset to default
         
         # Phase 2: Test Cap Strip
         print(f"\n{'='*60}")
