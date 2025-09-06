@@ -67,7 +67,7 @@ class Pattern(ABC):
             self.last_update = current_time
             self.frame_number += 1
         
-        return self.pixels
+        return self.pixels.copy()
     
     def set_param(self, name: str, value: Any):
         """Set a pattern parameter"""
