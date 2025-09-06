@@ -27,7 +27,6 @@ SERVICE_NAME="mushroom-lights"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 PROJECT_DIR="/home/dietpi/the-mushroom"
 VENV_PATH="${PROJECT_DIR}/mushroom-env"
-DEFAULT_PATTERN="rainbow_wave"
 DEFAULT_BRIGHTNESS="64"
 
 # Check if project exists
@@ -44,37 +43,65 @@ if [ ! -d "$VENV_PATH" ]; then
     exit 1
 fi
 
+# Get available patterns dynamically
+echo -e "${BLUE}Discovering available patterns...${NC}"
+AVAILABLE_PATTERNS=$(cd "$PROJECT_DIR" && "${VENV_PATH}/bin/python" main.py --list-patterns 2>/dev/null)
+if [ -z "$AVAILABLE_PATTERNS" ]; then
+    echo -e "${YELLOW}Warning: Could not discover patterns, using defaults${NC}"
+    AVAILABLE_PATTERNS="rainbow\ntest"
+fi
+
+# Convert to array
+readarray -t PATTERN_ARRAY <<< "$AVAILABLE_PATTERNS"
+DEFAULT_PATTERN="${PATTERN_ARRAY[0]}"  # Use first available pattern as default
+
+echo -e "${GREEN}Found patterns: ${PATTERN_ARRAY[*]}${NC}\n"
+
 # Check if startup config exists
 STARTUP_CONFIG="${PROJECT_DIR}/config/startup.yaml"
 if [ -f "$STARTUP_CONFIG" ]; then
     echo -e "${GREEN}Using settings from config/startup.yaml${NC}"
-    echo -e "${YELLOW}To change pattern/brightness, edit: ${STARTUP_CONFIG}${NC}\n"
+    echo -e "${YELLOW}To change patterns/brightness, edit: ${STARTUP_CONFIG}${NC}\n"
 else
-    echo -e "${YELLOW}No startup.yaml found. Creating with defaults...${NC}"
-    # Create default startup config
+    echo -e "${YELLOW}No startup.yaml found. Creating configuration...${NC}\n"
+    
+    # Let user choose patterns
+    echo "Select default patterns for your mushroom:"
+    echo "Available patterns: ${PATTERN_ARRAY[*]}"
+    echo ""
+    
+    # Cap pattern selection
+    read -p "Pattern for cap (450 LEDs) [${DEFAULT_PATTERN}]: " CAP_PATTERN
+    CAP_PATTERN=${CAP_PATTERN:-$DEFAULT_PATTERN}
+    
+    # Stem pattern selection  
+    read -p "Pattern for stem (250 LEDs) [${DEFAULT_PATTERN}]: " STEM_PATTERN
+    STEM_PATTERN=${STEM_PATTERN:-$DEFAULT_PATTERN}
+    
+    # Brightness selection
+    read -p "Global brightness (0-255) [${DEFAULT_BRIGHTNESS}]: " BRIGHTNESS
+    BRIGHTNESS=${BRIGHTNESS:-$DEFAULT_BRIGHTNESS}
+    
+    # Create startup config
     mkdir -p "${PROJECT_DIR}/config"
     cat > "$STARTUP_CONFIG" << EOCONFIG
 # Startup Configuration
-# This file controls what pattern and settings are used when the light show starts on boot
+# This file controls what patterns and settings are used when the light show starts on boot
 
-# Pattern to load at startup
-# Available: test, rainbow_wave, rainbow_cycle
-pattern: ${DEFAULT_PATTERN}
+# Patterns for cap and stem (can be different or same)
+# Available patterns: ${PATTERN_ARRAY[*]}
+cap_pattern: ${CAP_PATTERN}     # 450 LEDs on cap exterior
+stem_pattern: ${STEM_PATTERN}    # 250 LEDs on stem interior
 
 # Global brightness (0-255)
-brightness: ${DEFAULT_BRIGHTNESS}
+brightness: ${BRIGHTNESS}
 
-# Pattern-specific parameters (optional)
-pattern_params:
-  rainbow_wave:
-    wave_length: 100
-    speed: 50.0
-  rainbow_cycle:
-    cycle_time: 5.0
-  test:
-    cycle_time: 3.0
+# Optional: Set different brightness for each zone
+# If not specified, uses the global brightness value above
+# cap_brightness: 128
+# stem_brightness: 96
 EOCONFIG
-    echo -e "${GREEN}Created default startup config at: ${STARTUP_CONFIG}${NC}"
+    echo -e "\n${GREEN}Created startup config at: ${STARTUP_CONFIG}${NC}"
 fi
 
 echo -e "\n${GREEN}Creating systemd service...${NC}"

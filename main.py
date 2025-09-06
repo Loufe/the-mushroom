@@ -9,6 +9,7 @@ import signal
 import sys
 import logging
 import argparse
+import json
 from pathlib import Path
 
 # Add src to path
@@ -24,18 +25,9 @@ logger = logging.getLogger(__name__)
 from hardware.led_controller import LEDController
 from patterns import PatternRegistry
 
-# Audio imports - requires libportaudio2 system package
-try:
-    from audio.device import AudioDevice
-    from audio.stream import AudioStream
-    AUDIO_AVAILABLE = True
-except (ImportError, OSError) as e:
-    logger.warning(f"Audio support unavailable: {e}")
-    AUDIO_AVAILABLE = False
-
 # Constants
-FPS_LOG_INTERVAL = 5.0  # Seconds between FPS logs
-TARGET_FPS = 60  # Maximum FPS to prevent CPU waste
+HEALTH_LOG_INTERVAL = 10.0  # Seconds between health logs
+HEALTH_CHECK_INTERVAL = 1.0  # Seconds between health checks
 
 
 class MushroomLights:
@@ -47,54 +39,8 @@ class MushroomLights:
         # Initialize LED controller
         self.controller = LEDController(config_path)
         
-        # Load config for audio settings
-        import yaml
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)
-        
-        # Initialize audio if enabled and available
-        self.audio_stream = None
-        audio_config = config.get('audio', {})
-        if audio_config.get('enabled', False):
-            if AUDIO_AVAILABLE:
-                logger.info("Initializing audio capture...")
-                try:
-                    # Find USB audio device
-                    device_id = AudioDevice.find_usb_device(audio_config.get('device', 'USB'))
-                    if device_id is not None:
-                        # Create audio stream
-                        audio_config['device_id'] = device_id
-                        self.audio_stream = AudioStream(audio_config)
-                        if self.audio_stream.start():
-                            logger.info("Audio capture started successfully")
-                        else:
-                            logger.warning("Failed to start audio stream")
-                            self.audio_stream = None
-                    else:
-                        logger.warning("No USB audio device found")
-                except Exception as e:
-                    logger.error(f"Audio initialization failed: {e}")
-                    self.audio_stream = None
-            else:
-                logger.warning("Audio enabled in config but PortAudio not installed")
-                logger.warning("Install with: sudo apt-get install libportaudio2")
-        
         # Pattern registry
         self.registry = PatternRegistry()
-        
-        # Create pattern instances
-        self.patterns = {}
-        for pattern_name in self.registry.list_patterns():
-            pattern_instance = self.registry.create_pattern(pattern_name, self.controller.total_leds)
-            if pattern_instance:
-                self.patterns[pattern_name] = pattern_instance
-        
-        if not self.patterns:
-            raise RuntimeError("No patterns available in registry")
-        
-        # Start with rainbow wave or first available pattern
-        self.current_pattern_name = 'rainbow_wave' if 'rainbow_wave' in self.patterns else list(self.patterns.keys())[0]
-        self.current_pattern = self.patterns[self.current_pattern_name]
         
         # Control flags
         self.running = True
@@ -103,60 +49,141 @@ class MushroomLights:
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
         
-        logger.info(f"Initialized with pattern: {self.current_pattern_name}")
+        logger.info("Mushroom Lights initialized")
     
     def signal_handler(self, sig, frame):
         """Handle shutdown signals"""
         logger.info("Shutdown signal received")
         self.running = False
     
-    def switch_pattern(self, pattern_name: str) -> bool:
-        """Switch to a different pattern"""
-        if pattern_name in self.patterns:
-            self.current_pattern_name = pattern_name
-            self.current_pattern = self.patterns[pattern_name]
-            self.current_pattern.reset()
-            logger.info(f"Switched to pattern: {pattern_name}")
-            return True
-        else:
-            logger.error(f"Unknown pattern: {pattern_name}. Available patterns: {list(self.patterns.keys())}")
-            return False
+    def set_patterns(self, cap_pattern_name: str, stem_pattern_name: str) -> bool:
+        """
+        Set patterns for cap and stem
+        
+        Args:
+            cap_pattern_name: Pattern name for cap LEDs (450 pixels)
+            stem_pattern_name: Pattern name for stem LEDs (250 pixels)
+            
+        Returns:
+            True if both patterns set successfully
+        """
+        success = True
+        
+        # Create cap pattern
+        if cap_pattern_name:
+            cap_pattern = self.registry.create_pattern(cap_pattern_name, 450)
+            if cap_pattern:
+                self.controller.set_cap_pattern(cap_pattern)
+                logger.info(f"Set cap pattern: {cap_pattern_name}")
+            else:
+                logger.error(f"Failed to create cap pattern: {cap_pattern_name}")
+                success = False
+        
+        # Create stem pattern
+        if stem_pattern_name:
+            stem_pattern = self.registry.create_pattern(stem_pattern_name, 250)
+            if stem_pattern:
+                self.controller.set_stem_pattern(stem_pattern)
+                logger.info(f"Set stem pattern: {stem_pattern_name}")
+            else:
+                logger.error(f"Failed to create stem pattern: {stem_pattern_name}")
+                success = False
+        
+        return success
     
     def run(self):
-        """Main application loop"""
-        logger.info("Starting main loop...")
+        """Main application loop - monitors health"""
+        logger.info("Starting LED controller threads...")
         
-        # Performance monitoring
-        last_log_time = time.time()
-        frame_time = 1.0 / TARGET_FPS
-        last_frame_time = time.time()
+        # Start the controller (starts all threads)
+        self.controller.start()
+        
+        # Health monitoring
+        last_health_log = time.time()
+        last_health_check = time.time()
         
         try:
+            logger.info("Controller running. Press Ctrl+C to stop.")
+            
             while self.running:
                 current_time = time.time()
                 
-                # Get pattern output
-                pixels = self.current_pattern.render()
+                # Check health periodically
+                if current_time - last_health_check >= HEALTH_CHECK_INTERVAL:
+                    health = self.controller.get_health()
+                    
+                    # Check for thread failures
+                    cap_health = health['cap']
+                    stem_health = health['stem']
+                    
+                    if not cap_health['pattern_alive'] or not cap_health['spi_alive']:
+                        logger.error("Cap controller thread died!")
+                        self.running = False
+                        break
+                    
+                    if not stem_health['pattern_alive'] or not stem_health['spi_alive']:
+                        logger.error("Stem controller thread died!")
+                        self.running = False
+                        break
+                    
+                    # Check for excessive errors
+                    if cap_health['pattern_errors'] >= 3 or cap_health['spi_errors'] >= 3:
+                        logger.error("Cap controller has too many errors!")
+                        self.running = False
+                        break
+                    
+                    if stem_health['pattern_errors'] >= 3 or stem_health['spi_errors'] >= 3:
+                        logger.error("Stem controller has too many errors!")
+                        self.running = False
+                        break
+                    
+                    last_health_check = current_time
                 
-                # Send to LEDs with error handling
-                try:
-                    self.controller.set_pixels(pixels)
-                    self.controller.present()
-                except Exception as e:
-                    logger.error(f"Failed to update LEDs: {e}")
-                    # Continue running even if LED update fails
+                # Log performance periodically
+                if current_time - last_health_log >= HEALTH_LOG_INTERVAL:
+                    stats = self.controller.get_stats()
+                    logger.info(
+                        f"Performance | Cap: {stats['cap_fps']:.1f} FPS ({stats['cap_frames']} frames) | "
+                        f"Stem: {stats['stem_fps']:.1f} FPS ({stats['stem_frames']} frames) | "
+                        f"Errors: {stats['cap_errors'] + stats['stem_errors']}"
+                    )
+                    
+                    # Export performance metrics to JSON
+                    try:
+                        # Get pattern names safely
+                        cap_pattern_name = None
+                        stem_pattern_name = None
+                        
+                        try:
+                            if hasattr(self.controller.cap_controller, 'pattern') and self.controller.cap_controller.pattern:
+                                cap_pattern_name = self.controller.cap_controller.pattern.__class__.__name__
+                        except AttributeError:
+                            pass
+                        
+                        try:
+                            if hasattr(self.controller.stem_controller, 'pattern') and self.controller.stem_controller.pattern:
+                                stem_pattern_name = self.controller.stem_controller.pattern.__class__.__name__
+                        except AttributeError:
+                            pass
+                        
+                        metrics = {
+                            'timestamp': current_time,
+                            'cap': self.controller.cap_controller.get_performance_details(),
+                            'stem': self.controller.stem_controller.get_performance_details(),
+                            'patterns': {
+                                'cap': cap_pattern_name,
+                                'stem': stem_pattern_name
+                            }
+                        }
+                        with open('/tmp/mushroom-metrics.json', 'w') as f:
+                            json.dump(metrics, f, indent=2)
+                    except Exception as e:
+                        logger.debug(f"Failed to export metrics: {e}")
+                    
+                    last_health_log = current_time
                 
-                # Performance monitoring
-                if current_time - last_log_time >= FPS_LOG_INTERVAL:
-                    fps = self.controller.get_fps()
-                    logger.info(f"Pattern: {self.current_pattern_name} | FPS: {fps:.1f}")
-                    last_log_time = current_time
-                
-                # Frame rate limiting - sleep only if we're ahead of schedule
-                frame_duration = current_time - last_frame_time
-                if frame_duration < frame_time:
-                    time.sleep(frame_time - frame_duration)
-                last_frame_time = time.time()
+                # Sleep briefly to avoid busy waiting
+                time.sleep(0.1)
         
         except Exception as e:
             logger.error(f"Error in main loop: {e}", exc_info=True)
@@ -164,8 +191,6 @@ class MushroomLights:
         finally:
             # Clean shutdown
             logger.info("Shutting down...")
-            if self.audio_stream:
-                self.audio_stream.stop()
             self.controller.cleanup()
             logger.info("Shutdown complete")
 
@@ -177,10 +202,22 @@ def main():
     
     parser = argparse.ArgumentParser(description='Mushroom LED Controller')
     parser.add_argument(
+        '--cap-pattern',
+        default=None,
+        choices=available_patterns if available_patterns else None,
+        help='Pattern for cap LEDs (450 pixels)'
+    )
+    parser.add_argument(
+        '--stem-pattern',
+        default=None,
+        choices=available_patterns if available_patterns else None,
+        help='Pattern for stem LEDs (250 pixels)'
+    )
+    parser.add_argument(
         '--pattern', '-p',
         default=None,
         choices=available_patterns if available_patterns else None,
-        help='Initial pattern to display (overrides startup config)'
+        help='Pattern for both cap and stem (overrides individual patterns)'
     )
     parser.add_argument(
         '--config', '-c',
@@ -191,7 +228,19 @@ def main():
         '--brightness', '-b',
         type=int,
         default=None,
-        help='Global brightness 0-255 (overrides startup config)'
+        help='Global brightness 0-255'
+    )
+    parser.add_argument(
+        '--cap-brightness',
+        type=int,
+        default=None,
+        help='Cap brightness 0-255'
+    )
+    parser.add_argument(
+        '--stem-brightness',
+        type=int,
+        default=None,
+        help='Stem brightness 0-255'
     )
     parser.add_argument(
         '--startup-config', '-s',
@@ -217,52 +266,74 @@ def main():
             print(pattern)
         sys.exit(0)
     
-    # Load startup configuration if it exists and not disabled
-    startup_pattern = 'rainbow_wave'
-    startup_brightness = 128
-    pattern_params = {}
+    # Determine patterns to use
+    cap_pattern = None
+    stem_pattern = None
+    brightness = 128
+    cap_brightness = None
+    stem_brightness = None
     
+    # Load startup configuration if it exists and not disabled
     if not args.no_startup_config and Path(args.startup_config).exists():
         try:
             import yaml
             with open(args.startup_config, 'r') as f:
                 startup = yaml.safe_load(f)
-                startup_pattern = startup.get('pattern', 'rainbow_wave')
-                startup_brightness = startup.get('brightness', 128)
-                pattern_params = startup.get('pattern_params', {})
+                cap_pattern = startup.get('cap_pattern', 'rainbow')
+                stem_pattern = startup.get('stem_pattern', 'rainbow')
+                brightness = startup.get('brightness', 128)
+                cap_brightness = startup.get('cap_brightness')
+                stem_brightness = startup.get('stem_brightness')
                 logger.info(f"Loaded startup config from {args.startup_config}")
         except Exception as e:
             logger.warning(f"Could not load startup config: {e}")
     
     # Command line arguments override startup config
     if args.pattern:
-        startup_pattern = args.pattern
-    if args.brightness is not None:
-        startup_brightness = args.brightness
+        # Same pattern for both
+        cap_pattern = args.pattern
+        stem_pattern = args.pattern
+    else:
+        # Individual patterns
+        if args.cap_pattern:
+            cap_pattern = args.cap_pattern
+        if args.stem_pattern:
+            stem_pattern = args.stem_pattern
     
-    # Create and run application
+    # Default patterns if none specified
+    if not cap_pattern:
+        cap_pattern = 'rainbow'
+        logger.info(f"No cap pattern specified, using default: {cap_pattern}")
+    if not stem_pattern:
+        stem_pattern = 'rainbow'
+        logger.info(f"No stem pattern specified, using default: {stem_pattern}")
+    
+    # Brightness overrides
+    if args.brightness is not None:
+        brightness = args.brightness
+    if args.cap_brightness is not None:
+        cap_brightness = args.cap_brightness
+    if args.stem_brightness is not None:
+        stem_brightness = args.stem_brightness
+    
+    # Create and configure application
     app = MushroomLights(args.config)
     
-    # Validate and set initial brightness
-    if not 0 <= startup_brightness <= 255:
-        logger.warning(f"Invalid brightness {startup_brightness}, clamping to range 0-255")
-        startup_brightness = max(0, min(255, startup_brightness))
-    app.controller.set_brightness(startup_brightness)
-    logger.info(f"Set brightness to {startup_brightness}")
+    # Set patterns
+    if not app.set_patterns(cap_pattern, stem_pattern):
+        logger.error("Failed to set patterns")
+        sys.exit(1)
     
-    # Validate and set initial pattern
-    if not app.switch_pattern(startup_pattern):
-        logger.warning(f"Pattern '{startup_pattern}' not found, falling back to 'rainbow_wave'")
-        app.switch_pattern('rainbow_wave')
-    
-    # Apply pattern-specific parameters if available
-    if app.current_pattern_name in pattern_params:
-        for param, value in pattern_params[app.current_pattern_name].items():
-            try:
-                app.current_pattern.set_param(param, value)
-                logger.info(f"Set {app.current_pattern_name}.{param} = {value}")
-            except Exception as e:
-                logger.error(f"Failed to set parameter {param}: {e}")
+    # Set brightness
+    if brightness is not None:
+        app.controller.set_brightness(brightness)
+        logger.info(f"Set global brightness to {brightness}")
+    if cap_brightness is not None:
+        app.controller.set_cap_brightness(cap_brightness)
+        logger.info(f"Set cap brightness to {cap_brightness}")
+    if stem_brightness is not None:
+        app.controller.set_stem_brightness(stem_brightness)
+        logger.info(f"Set stem brightness to {stem_brightness}")
     
     # Run
     app.run()

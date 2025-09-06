@@ -33,6 +33,10 @@ class Pattern(ABC):
         
         # Pattern parameters (can be modified at runtime)
         self.params = self.get_default_params()
+        
+        # Hardware brightness (0-1), set by controller
+        # Applied during pattern generation to avoid post-processing
+        self.brightness = 1.0
     
     @abstractmethod
     def get_default_params(self) -> Dict[str, Any]:
@@ -71,6 +75,10 @@ class Pattern(ABC):
             self.params[name] = value
         else:
             raise ValueError(f"Unknown parameter '{name}' for pattern. Valid parameters: {list(self.params.keys())}")
+    
+    def set_brightness(self, brightness: float):
+        """Set hardware brightness (0-1) for this pattern"""
+        self.brightness = max(0.0, min(1.0, brightness))
     
     def get_time(self) -> float:
         """Get time since pattern started"""

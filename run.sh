@@ -44,6 +44,8 @@ cmd_start() {
     
     # Parse arguments using array for safety
     PATTERN=""
+    CAP_PATTERN=""
+    STEM_PATTERN=""
     BRIGHTNESS=""
     ARGS=()
     
@@ -59,9 +61,19 @@ cmd_start() {
                 ARGS+=("--pattern" "$2")
                 shift 2
                 ;;
+            --cap-pattern)
+                CAP_PATTERN="$2"
+                ARGS+=("--cap-pattern" "$2")
+                shift 2
+                ;;
+            --stem-pattern)
+                STEM_PATTERN="$2"
+                ARGS+=("--stem-pattern" "$2")
+                shift 2
+                ;;
             *)
-                # First non-flag argument is pattern
-                if [ -z "$PATTERN" ]; then
+                # First non-flag argument is pattern for both
+                if [ -z "$PATTERN" ] && [ -z "$CAP_PATTERN" ] && [ -z "$STEM_PATTERN" ]; then
                     PATTERN="$1"
                     ARGS+=("--pattern" "$1")
                 fi
@@ -72,7 +84,13 @@ cmd_start() {
     
     echo "Starting LED controller..."
     if [ -n "$PATTERN" ]; then
-        echo "  Pattern: $PATTERN"
+        echo "  Pattern (both): $PATTERN"
+    fi
+    if [ -n "$CAP_PATTERN" ]; then
+        echo "  Cap pattern: $CAP_PATTERN"
+    fi
+    if [ -n "$STEM_PATTERN" ]; then
+        echo "  Stem pattern: $STEM_PATTERN"
     fi
     if [ -n "$BRIGHTNESS" ]; then
         echo "  Brightness: $BRIGHTNESS"
@@ -266,6 +284,18 @@ cmd_log() {
     fi
 }
 
+# View performance metrics
+cmd_perf() {
+    # Check if script exists
+    if [[ ! -f "$SCRIPT_DIR/scripts/display_metrics.py" ]]; then
+        echo -e "${RED}Metrics display script not found${NC}"
+        exit 1
+    fi
+    
+    # Run the display script
+    python3 "$SCRIPT_DIR/scripts/display_metrics.py"
+}
+
 # Show command list for no arguments
 if [ $# -eq 0 ]; then
     echo "Mushroom LED Controller"
@@ -273,18 +303,27 @@ if [ $# -eq 0 ]; then
     echo "Usage: ./run.sh COMMAND [OPTIONS]"
     echo ""
     echo "Commands:"
-    echo "  start [pattern] [--brightness N]  Start LED controller"
-    echo "  stop                              Stop all LED processes"
-    echo "  restart [pattern]                 Restart LED controller"
-    echo "  status                           Show running status"
-    echo "  test                             Run hardware test"
-    echo "  list                             List available patterns"
-    echo "  log                              View logs in pager"
+    echo "  start [OPTIONS]    Start LED controller"
+    echo "  stop              Stop all LED processes"
+    echo "  restart [OPTIONS] Restart LED controller"
+    echo "  status            Show running status"
+    echo "  test              Run hardware test"
+    echo "  list              List available patterns"
+    echo "  log               View logs in pager"
+    echo "  perf              View performance metrics"
+    echo ""
+    echo "Start Options:"
+    echo "  [pattern]                    Set same pattern for both strips"
+    echo "  --pattern PATTERN            Set same pattern for both strips"
+    echo "  --cap-pattern PATTERN        Set pattern for cap (450 LEDs)"
+    echo "  --stem-pattern PATTERN       Set pattern for stem (250 LEDs)"
+    echo "  --brightness N               Set global brightness (0-255)"
     echo ""
     echo "Examples:"
-    echo "  ./run.sh start rainbow_wave --brightness 128"
+    echo "  ./run.sh start rainbow                    # Both strips rainbow"
+    echo "  ./run.sh start --cap-pattern rainbow --stem-pattern test"
+    echo "  ./run.sh start --brightness 128"
     echo "  ./run.sh status"
-    echo "  ./run.sh log"
     echo ""
     echo "Note: Commands require sudo for GPIO/SPI access"
     exit 0
@@ -314,6 +353,9 @@ case "$1" in
         ;;
     log)
         cmd_log
+        ;;
+    perf)
+        cmd_perf
         ;;
     *)
         echo -e "${RED}Unknown command: $1${NC}"

@@ -36,7 +36,7 @@ cd the-mushroom
 sudo mushroom-env/bin/python tests/test_spi.py --count 10
 
 # Run the light show
-./run.sh --pattern rainbow_wave --brightness 64
+./run.sh --pattern rainbow --brightness 64
 ```
 
 The setup script will:

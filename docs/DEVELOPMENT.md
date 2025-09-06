@@ -5,26 +5,26 @@
 ### System Components
 ```
 the-mushroom/
-├── main.py                  # Entry point, pattern management
+├── main.py                     # Entry point, health monitoring
 ├── src/
 │   ├── hardware/
-│   │   └── led_controller.py  # Dual SPI abstraction layer
+│   │   ├── led_controller.py  # Dual strip manager
+│   │   └── strip_controller.py # Per-strip threading
 │   ├── patterns/
-│   │   ├── base.py          # Abstract pattern class
-│   │   ├── registry.py      # Auto-registration system
-│   │   └── *.py             # Pattern implementations
+│   │   ├── base.py            # Abstract pattern class
+│   │   ├── registry.py        # Auto-registration
+│   │   └── *.py               # Pattern implementations
 │   └── effects/
-│       └── colors.py        # Color utilities and palettes
-├── config/                  # YAML configurations
-├── tests/                   # Hardware validation
-└── scripts/                 # Operational utilities
+│       └── colors.py          # Color utilities
+├── config/                     # YAML configurations
+└── tests/                      # Hardware validation
 ```
 
-### Key Design Decisions
-- **Pi5Neo over CircuitPython**: Better Pi 5 compatibility, handles 700 LEDs
-- **Dual SPI channels**: Parallel updates, independent zone control
-- **Pattern registry**: Auto-discovery via decorators
-- **YAML configs**: Runtime adjustments without code changes
+### Architecture
+- **Parallel Threading**: Separate pattern generation and SPI transmission threads per strip
+- **Double Buffering**: Pattern threads generate while SPI threads transmit
+- **Independent Control**: Cap (450 LEDs) and stem (250 LEDs) run different patterns
+- **Health Monitoring**: Main thread monitors thread health and performance
 
 ## Creating New Patterns
 
@@ -64,29 +64,30 @@ The pattern auto-registers and appears in `--pattern` options.
 
 - **Use numpy operations** for performance (vectorized > loops)
 - **Respect frame timing** via delta_time parameter
-- **Parameter validation** in set_param() method
-- **Test with reduced LEDs** first: `--count 10`
+- **Keep patterns simple** - complexity can cause frame drops
 
 ### Available Base Methods
 - `get_time()`: Time since pattern started
-- `reset()`: Reset to initial state  
-- `set_param(name, value)`: Runtime adjustment
+- `reset()`: Reset to initial state
 - `render()`: Called by main loop (handles timing)
 
 ## Hardware Abstraction
 
-### LED Controller
-The `LEDController` manages both SPI channels as one logical display:
+### Controller API
 
 ```python
 controller = LEDController("config/led_config.yaml")
-controller.set_pixels(pixel_array)  # 700x3 numpy array
-controller.present()                # Push to hardware
 
-# Zone-specific updates (atomic - both updated before present)
-controller.set_stem_pixels(stem_array)  # 250 LEDs
-controller.set_cap_pixels(cap_array)    # 450 LEDs  
-controller.present()                    # Push both zones to hardware
+# Set patterns (before starting)
+controller.set_cap_pattern(cap_pattern)    # 450 LED pattern
+controller.set_stem_pattern(stem_pattern)  # 250 LED pattern
+
+# Start threading system
+controller.start()
+
+# Monitor health
+health = controller.get_health()
+stats = controller.get_stats()
 ```
 
 ### Configuration Files
@@ -104,33 +105,26 @@ strips:
 
 **startup.yaml**: Boot settings
 ```yaml
-pattern: rainbow_wave
+cap_pattern: rainbow
+stem_pattern: rainbow
 brightness: 128
-pattern_params:
-  rainbow_wave:
-    wave_length: 100
-    speed: 50.0
 ```
 
 ## Testing & Debugging
 
 ### Hardware Validation
 ```bash
-# Test individual strips
-sudo mushroom-env/bin/python tests/test_spi.py --mode stem --count 10
-sudo mushroom-env/bin/python tests/test_spi.py --mode cap --count 10
-
-# Test dual simultaneous
-sudo mushroom-env/bin/python tests/test_spi.py --mode dual
-
-# Full system test
-sudo mushroom-env/bin/python tests/test_spi.py --mode both
+# Full hardware test
+sudo mushroom-env/bin/python tests/test_spi.py
 ```
 
 ### Pattern Testing
 ```bash
-# Test specific pattern with low brightness
-./run.sh --pattern my_pattern --brightness 32
+# Test with different patterns on cap/stem
+./run.sh --cap-pattern rainbow --stem-pattern test --brightness 32
+
+# Same pattern on both
+./run.sh --pattern rainbow --brightness 32
 
 # Monitor performance
 htop  # In another terminal

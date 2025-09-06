@@ -445,7 +445,7 @@ main() {
     echo "Quick start commands:"
     echo -e "  ${YELLOW}Test LEDs:${NC}  sudo ${VENV_PATH}/bin/python tests/test_spi.py"
     echo -e "  ${YELLOW}Run now:${NC}    ./run.sh"
-    echo -e "  ${YELLOW}Run with pattern:${NC} ./run.sh --pattern rainbow_wave"
+    echo -e "  ${YELLOW}Run with pattern:${NC} ./run.sh --pattern rainbow"
     echo -e "  ${YELLOW}Change settings:${NC} nano config/startup.yaml"
     echo ""
     

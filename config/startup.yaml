@@ -1,32 +1,50 @@
-# Startup Configuration
-# This file controls what pattern and settings are used when the light show starts on boot
+# ============================================================================
+# MUSHROOM LED STARTUP CONFIGURATION
+# ============================================================================
+# This file controls the LED patterns and settings when the system boots.
+# The mushroom will automatically start with these settings on power-up.
+#
+# To apply changes:
+#   - Edit this file and save
+#   - Run: sudo systemctl restart mushroom-lights
+#   - Or reboot the Pi
+# ============================================================================
 
-# Pattern to load at startup
-# Available: test, rainbow_wave, rainbow_cycle
-pattern: rainbow_wave
+# ----------------------------------------------------------------------------
+# PATTERN SELECTION
+# ----------------------------------------------------------------------------
+# The mushroom has two independent zones that can run different patterns:
+#   - Cap: 450 LEDs arranged around the mushroom cap exterior
+#   - Stem: 250 LEDs inside the translucent stem
+#
+# Available patterns:
+#   rainbow - Smooth color gradient that travels around the mushroom
+#   test    - Simple RGB cycle for testing (red → green → blue)
+#
+# Tip: Using different patterns creates interesting visual layers!
+# ----------------------------------------------------------------------------
 
-# Global brightness (0-255)
-brightness: 128
+cap_pattern: rainbow     # Pattern for the cap (450 LEDs)
+stem_pattern: rainbow    # Pattern for the stem (250 LEDs)
 
-# Pattern-specific parameters (optional)
-pattern_params:
-  rainbow_wave:
-    wave_length: 100
-    speed: 50.0
-    saturation: 1.0
-  rainbow_cycle:
-    cycle_time: 5.0
-    saturation: 1.0
-  test:
-    cycle_time: 3.0
+# ----------------------------------------------------------------------------
+# BRIGHTNESS CONTROL
+# ----------------------------------------------------------------------------
+# Brightness values: 0 (off) to 255 (maximum)
+# 
+# Recommended values:
+#   Indoor ambient: 64-96
+#   Indoor accent: 96-128  
+#   Outdoor/bright: 128-192
+#   Maximum/demo: 192-255
+#
+# Note: Higher brightness = more power consumption and heat
+# Each LED at full white draws ~60mA, so 700 LEDs = 42A theoretical max!
+# ----------------------------------------------------------------------------
 
-# Performance settings
-performance:
-  fps_logging: true        # Log FPS every 5 seconds
-  log_interval: 5          # Seconds between FPS logs
-  
-# Audio-reactive settings
-audio:
-  enabled: false          # Set to true to enable audio input
-  device: "USB"          # "USB" for auto-detect, or specific device name
-  sensitivity: 0.5       # Audio sensitivity for reactive patterns (0.0-1.0)
+brightness: 128          # Default brightness for both zones
+
+# Optional: Set different brightness for each zone
+# If not specified, uses the global brightness value above
+# cap_brightness: 128    # Brightness for cap only (450 LEDs)
+# stem_brightness: 96    # Brightness for stem only (250 LEDs)

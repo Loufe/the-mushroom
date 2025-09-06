@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 class StripController:
     """Controls a single LED strip with dedicated pattern and SPI threads"""
     
+    # Class constants
+    WAIT_TIMEOUT_MS = 100  # Thread wait timeout in milliseconds
+    
     def __init__(self, name: str, strip_config: dict, hardware_config: dict):
         """
         Initialize strip controller
@@ -70,6 +73,17 @@ class StripController:
         # Setup logger for this strip
         self.logger = logging.getLogger(f"Strip.{name}")
         
+        # Performance metrics (running statistics with 5-minute window)
+        self.metrics = {
+            'color_calc': {'count': 0, 'sum': 0.0, 'min': float('inf'), 'max': 0.0, 'last': 0.0},
+            'pattern_wait': {'count': 0, 'sum': 0.0, 'min': float('inf'), 'max': 0.0, 'last': 0.0},
+            'buffer_prep': {'count': 0, 'sum': 0.0, 'min': float('inf'), 'max': 0.0, 'last': 0.0},
+            'spi_transmit': {'count': 0, 'sum': 0.0, 'min': float('inf'), 'max': 0.0, 'last': 0.0},
+            'spi_wait': {'count': 0, 'sum': 0.0, 'min': float('inf'), 'max': 0.0, 'last': 0.0}
+        }
+        self.metrics_start_time = time.time()
+        self.METRICS_WINDOW_SECONDS = 300  # 5-minute rolling window
+        
         # Initialize SPI device
         try:
             self.spi = Pi5Neo(
@@ -87,7 +101,40 @@ class StripController:
         if self.running:
             raise RuntimeError("Cannot change pattern while running")
         self.pattern = pattern
-        self.logger.info(f"Set pattern {pattern.__class__.__name__} for {self.name}")
+        # Pass hardware brightness to pattern
+        pattern.set_brightness(self._brightness_factor)
+        # Reset metrics for new pattern
+        for metric in self.metrics.values():
+            metric['count'] = 0
+            metric['sum'] = 0.0
+            metric['min'] = float('inf')
+            metric['max'] = 0.0
+            metric['last'] = 0.0
+        self.metrics_start_time = time.time()
+        self.logger.info(f"Set pattern {pattern.__class__.__name__} for {self.name}, reset metrics")
+    
+    def _record_metric(self, name: str, value_ms: float):
+        """Record a performance metric with running statistics"""
+        # Check if metrics window has expired (5 minutes)
+        current_time = time.time()
+        if current_time - self.metrics_start_time > self.METRICS_WINDOW_SECONDS:
+            # Reset all metrics for new window
+            for metric in self.metrics.values():
+                metric['count'] = 0
+                metric['sum'] = 0.0
+                metric['min'] = float('inf')
+                metric['max'] = 0.0
+                metric['last'] = 0.0
+            self.metrics_start_time = current_time
+            self.logger.debug(f"Reset metrics for {self.name} after 5-minute window")
+        
+        # Record the metric
+        metric = self.metrics[name]
+        metric['count'] += 1
+        metric['sum'] += value_ms
+        metric['min'] = min(metric['min'], value_ms)
+        metric['max'] = max(metric['max'], value_ms)
+        metric['last'] = value_ms
     
     def start(self):
         """Start pattern generation and SPI transmission threads"""
@@ -148,7 +195,12 @@ class StripController:
         while self.running:
             try:
                 # Wait for permission to generate
+                wait_start = time.perf_counter()
                 self.can_generate.wait(timeout=0.1)
+                wait_time_ms = (time.perf_counter() - wait_start) * 1000
+                if wait_time_ms < self.WAIT_TIMEOUT_MS:  # Only record if not timeout
+                    self._record_metric('pattern_wait', wait_time_ms)
+                
                 if not self.running:
                     break
                 
@@ -165,17 +217,14 @@ class StripController:
                 if len(pixels) != self.led_count:
                     raise ValueError(f"Pattern returned {len(pixels)} pixels, expected {self.led_count}")
                 
-                # Apply brightness
-                if self.brightness != 255:
-                    pixels = (pixels * self._brightness_factor).clip(0, 255).astype(np.uint8)
-                
-                # Store in buffer
+                # Store in buffer (pattern already applied brightness)
                 with self.buffer_lock:
                     self.buffer = pixels
                 
                 # Update stats
                 self.frames_generated += 1
                 gen_time = (time.perf_counter() - start_time) * 1000
+                self._record_metric('color_calc', gen_time)
                 self.logger.debug(f"Generated frame in {gen_time:.1f}ms")
                 
                 # Reset error count on success
@@ -213,7 +262,12 @@ class StripController:
         while self.running:
             try:
                 # Wait for frame to transmit
+                wait_start = time.perf_counter()
                 self.can_transmit.wait(timeout=0.1)
+                wait_time_ms = (time.perf_counter() - wait_start) * 1000
+                if wait_time_ms < self.WAIT_TIMEOUT_MS:  # Only record if not timeout
+                    self._record_metric('spi_wait', wait_time_ms)
+                
                 if not self.running:
                     break
                 
@@ -230,17 +284,23 @@ class StripController:
                 self.can_transmit.clear()
                 self.can_generate.set()
                 
-                # Transmit to SPI
-                start_time = time.perf_counter()
+                # Transmit to SPI - measure buffer preparation and SPI transmission separately
+                pixel_start = time.perf_counter()
                 for i in range(len(pixels)):
                     r, g, b = pixels[i]
                     self.spi.set_led_color(i, int(r), int(g), int(b))
+                pixel_time_ms = (time.perf_counter() - pixel_start) * 1000
+                self._record_metric('buffer_prep', pixel_time_ms)
+                
+                spi_start = time.perf_counter()
                 self.spi.update_strip(sleep_duration=None)
+                spi_time_ms = (time.perf_counter() - spi_start) * 1000
+                self._record_metric('spi_transmit', spi_time_ms)
                 
                 # Update stats
                 self.frames_transmitted += 1
-                tx_time = (time.perf_counter() - start_time) * 1000
-                self.logger.debug(f"Transmitted frame in {tx_time:.1f}ms")
+                total_tx_time = pixel_time_ms + spi_time_ms
+                self.logger.debug(f"Transmitted frame in {total_tx_time:.1f}ms (pixel:{pixel_time_ms:.1f}ms spi:{spi_time_ms:.1f}ms)")
                 
                 # Update FPS
                 current_time = time.time()
@@ -276,6 +336,9 @@ class StripController:
         """Set brightness (0-255)"""
         self.brightness = max(0, min(255, brightness))
         self._brightness_factor = self.brightness / 255.0
+        # Update pattern's brightness if one is set
+        if self.pattern:
+            self.pattern.set_brightness(self._brightness_factor)
         self.logger.info(f"Set {self.name} brightness to {self.brightness}")
     
     def get_health(self) -> dict:
@@ -293,6 +356,45 @@ class StripController:
             'pattern_heartbeat_age': now - self.last_pattern_heartbeat,
             'spi_heartbeat_age': now - self.last_spi_heartbeat
         }
+    
+    def get_performance_details(self) -> dict:
+        """Get detailed performance metrics"""
+        details = {}
+        
+        # Add defensive programming
+        try:
+            for name, metric in self.metrics.items():
+                if metric.get('count', 0) > 0:
+                    count = metric['count']
+                    sum_val = metric.get('sum', 0.0)
+                    details[name] = {
+                        'avg': sum_val / count if count > 0 else 0.0,
+                        'min': metric.get('min', 0.0),
+                        'max': metric.get('max', 0.0),
+                        'last': metric.get('last', 0.0),
+                        'samples': count
+                    }
+                else:
+                    details[name] = {
+                        'avg': 0.0,
+                        'min': 0.0,
+                        'max': 0.0,
+                        'last': 0.0,
+                        'samples': 0
+                    }
+        except (KeyError, TypeError, ZeroDivisionError) as e:
+            self.logger.debug(f"Error calculating metrics: {e}")
+            # Return safe defaults
+            for name in ['color_calc', 'pattern_wait', 'buffer_prep', 'spi_transmit', 'spi_wait']:
+                details[name] = {
+                    'avg': 0.0,
+                    'min': 0.0,
+                    'max': 0.0,
+                    'last': 0.0,
+                    'samples': 0
+                }
+        
+        return details
     
     def cleanup(self):
         """Clean shutdown"""

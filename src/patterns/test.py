@@ -23,8 +23,8 @@ class TestPattern(Pattern):
         phase = (self.get_time() / self.params['cycle_time']) % 3
         color_index = int(phase)
         
-        # Set all LEDs to the same color
+        # Set all LEDs to the same color with brightness applied
         self.pixels.fill(0)
-        self.pixels[:, color_index] = 255
+        self.pixels[:, color_index] = int(255 * self.brightness)
         
         return self.pixels

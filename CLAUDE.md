@@ -15,7 +15,7 @@
 sudo mushroom-env/bin/python tests/test_spi.py
 
 # Run main application
-./run.sh --pattern rainbow_wave --brightness 128
+./run.sh --pattern rainbow --brightness 128
 
 # View service logs
 sudo journalctl -u mushroom-lights -f
@@ -35,26 +35,17 @@ sudo systemctl restart mushroom-lights
 - DO NOT add comments unless requested
 - PREFER editing existing patterns over creating new files
 
-## API Usage Rules
-**Patterns and Tests MUST use Controller API only:**
+## Pi5Neo Library Bottleneck
+**Critical**: Pi5Neo has no batch operations - pixels must be set individually:
 ```python
-# CORRECT - Use controller methods:
-controller.set_pixels(pixel_array)  # Set pixel buffer
-controller.fill((r, g, b))          # Fill all pixels
-controller.set_brightness(128)      # Set global brightness
-controller.present()                 # Push to hardware
-
-# WRONG - Never access strips directly:
-strip.fill((r, g, b))               # Bypasses controller
-strip.present()                     # Breaks abstraction
+# Current performance bottleneck in strip_controller.py:
+for i in range(len(pixels)):  # Can't avoid this loop
+    self.spi.set_led_color(i, r, g, b)
+self.spi.update_strip(sleep_duration=None)  # MUST be None for speed
 ```
-
-**Architecture Layers:**
-1. **Patterns** → Generate numpy arrays only (no hardware access)
-2. **Controller** → Manages pixel buffer, brightness, and coordination
-3. **Strips** → Internal hardware interface (not for direct use)
-
-Direct strip access breaks brightness management and buffer synchronization.
+- Two-step: set_led_color() fills buffer, update_strip() sends via SPI
+- Library handles GRB order internally
+- No built-in brightness (applied in software before setting)
 
 ## Project Structure
 - `main.py` - Entry point and pattern management

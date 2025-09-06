@@ -38,3 +38,4 @@ audio:
   sample_rate: 44100     # Audio sample rate in Hz
   buffer_size: 512       # Audio buffer size in samples
   channels: 1            # Mono input
+  gain: 50.0             # Software gain multiplier (increase if mic is too quiet)

@@ -11,11 +11,10 @@ opencv-python-headless
 # Audio Processing  
 sounddevice
 numpy
-scipy
+scipy  # For advanced signal processing if needed
 
 # Configuration & Utilities
 pyyaml
-psutil
 
 # Development dependencies (optional)
 # pytest

@@ -1,123 +1,29 @@
 #!/usr/bin/env python3
 """
-LED Controller - Hardware abstraction layer for WS2811 LED strips
-Raspberry Pi 5 version using Pi5Neo library with dual SPI channels
+LED Controller - Manages dual LED strips with parallel pattern generation and transmission
+Raspberry Pi 5 version using dual SPI channels for cap and stem
 """
 
-from pi5neo import Pi5Neo
-import numpy as np
-import time
 import yaml
-from typing import List, Tuple, Optional
 import logging
+import time
+from typing import Optional, Dict, Any
+from .strip_controller import StripController
 
 logger = logging.getLogger(__name__)
 
-# Constants to avoid magic numbers
-SPI_UPDATE_DELAY = None  # CRITICAL: Must be None to prevent Pi5Neo's default 0.1s sleep between updates
-                         # Using 0 would still call time.sleep(0), None skips sleep entirely
-FPS_LOG_INTERVAL = 5.0  # Seconds between FPS logs
-
-
-class LEDStrip:
-    """Manages a single LED strip on one SPI channel"""
-    
-    def __init__(self, config: dict, hardware_config: dict):
-        self.id = config['id']
-        self.spi_device = config['spi_device']
-        self.led_count = config['led_count']
-        self.led_start = config['led_start']
-        self.led_end = config['led_end']
-        self.location = config['location']
-        self.description = config['description']
-        
-        # Hardware settings from config
-        self.spi_speed = hardware_config.get('spi_speed_khz', 800)
-        self.brightness = hardware_config.get('brightness', 128)
-        self._brightness_factor = self.brightness / 255.0  # Pre-calculate for performance
-        
-        # Initialize Pi5Neo strip
-        try:
-            self.strip = Pi5Neo(
-                spi_device=self.spi_device,
-                num_leds=self.led_count, 
-                spi_speed_khz=self.spi_speed
-            )
-            
-            # Clear strip on init
-            self.clear()
-            self.present()
-            
-            logger.info(f"Initialized strip {self.id} on {self.spi_device} with {self.led_count} LEDs")
-        except Exception as e:
-            logger.error(f"Failed to initialize strip {self.id}: {e}")
-            raise
-    
-    def _apply_brightness(self, r: int, g: int, b: int) -> Tuple[int, int, int]:
-        """Apply brightness scaling to RGB values (internal utility)"""
-        if self.brightness == 255:
-            return r, g, b
-        # Use pre-calculated factor for performance
-        return (int(r * self._brightness_factor), 
-                int(g * self._brightness_factor), 
-                int(b * self._brightness_factor))
-    
-    def set_pixel(self, index: int, color: Tuple[int, int, int]):
-        """Set a single pixel color"""
-        if 0 <= index < self.led_count:
-            r, g, b = self._apply_brightness(*color)
-            self.strip.set_led_color(index, r, g, b)
-    
-    def set_pixels(self, colors: np.ndarray):
-        """Set all pixels from numpy array of RGB values
-        
-        NOTE: This only updates internal state. Call present() to send to hardware.
-        Brightness is applied here before passing to Pi5Neo.
-        """
-        pixel_count = min(len(colors), self.led_count)
-        
-        # Vectorized brightness scaling using pre-calculated factor
-        if self.brightness == 255:
-            scaled = colors[:pixel_count].astype(np.uint8)
-        else:
-            # Use cached brightness factor for better performance
-            scaled = (colors[:pixel_count] * self._brightness_factor).clip(0, 255).astype(np.uint8)
-        
-        # Update LED colors (API requires individual calls)
-        for i in range(pixel_count):
-            self.strip.set_led_color(i, int(scaled[i, 0]), int(scaled[i, 1]), int(scaled[i, 2]))
-    
-    def present(self):
-        """Update the physical LEDs with current pixel state
-        
-        CRITICAL: Uses sleep_duration=None to prevent 0.1s delay.
-        Must be called after set_pixels() to actually update hardware.
-        """
-        self.strip.update_strip(sleep_duration=SPI_UPDATE_DELAY)
-    
-    def clear(self):
-        """Turn off all LEDs (requires present() to update hardware)"""
-        self.strip.fill_strip(0, 0, 0)
-    
-    def set_brightness(self, brightness: int):
-        """Set global brightness (0-255)"""
-        self.brightness = max(0, min(255, brightness))
-        self._brightness_factor = self.brightness / 255.0  # Update cached factor
-    
-    def fill(self, color: Tuple[int, int, int]):
-        """Fill entire strip with one color
-        
-        NOTE: Only updates internal state. Call present() to send to hardware.
-        """
-        r, g, b = self._apply_brightness(*color)
-        self.strip.fill_strip(r, g, b)
-
 
 class LEDController:
-    """Manages multiple LED strips as one logical display"""
+    """Manages cap and stem LED strips with independent patterns"""
     
     def __init__(self, config_path: str = "config/led_config.yaml"):
-        # Load configuration with minimal error handling
+        """
+        Initialize LED controller with configuration
+        
+        Args:
+            config_path: Path to YAML configuration file
+        """
+        # Load configuration
         try:
             with open(config_path, 'r') as f:
                 self.config = yaml.safe_load(f)
@@ -125,149 +31,164 @@ class LEDController:
             logger.error(f"Failed to load config from {config_path}: {e}")
             raise
         
-        # Basic validation - just prevent cryptic errors
+        # Validate config
         if not self.config or 'strips' not in self.config:
             raise ValueError(f"Config missing 'strips' section in {config_path}")
         
-        # Total LED count
-        self.total_leds = sum(strip['led_count'] for strip in self.config['strips'])
-        
-        # Initialize strips
-        self.strips = []
-        self.strip_map = {}  # Map strip IDs to strip objects
+        # Get hardware config
         hardware_config = self.config.get('hardware', {})
         
+        # Find cap and stem configurations
+        cap_config = None
+        stem_config = None
+        
         for strip_config in self.config['strips']:
-            try:
-                strip = LEDStrip(strip_config, hardware_config)
-                self.strips.append(strip)
-                self.strip_map[strip_config['id']] = strip
-            except Exception as e:
-                logger.error(f"Failed to initialize strip {strip_config['id']}: {e}")
-                # Continue with other strips instead of failing completely
+            if strip_config['id'] == 'cap_exterior':
+                cap_config = strip_config
+            elif strip_config['id'] == 'stem_interior':
+                stem_config = strip_config
         
-        if not self.strips:
-            raise RuntimeError("No LED strips could be initialized")
+        if not cap_config or not stem_config:
+            raise ValueError("Configuration must define both 'cap_exterior' and 'stem_interior' strips")
         
-        # Create unified pixel buffer
-        self.pixels = np.zeros((self.total_leds, 3), dtype=np.uint8)
+        # Create strip controllers
+        self.cap_controller = StripController('cap', cap_config, hardware_config)
+        self.stem_controller = StripController('stem', stem_config, hardware_config)
         
-        # Performance tracking
-        self.frame_count = 0
-        self.last_fps_time = time.time()
-        self.current_fps = 0
+        # Track total LED count for compatibility
+        self.total_leds = cap_config['led_count'] + stem_config['led_count']
         
-        logger.info(f"LED Controller initialized with {len(self.strips)} strips, {self.total_leds} total LEDs")
-    
-    def set_pixel(self, index: int, color: Tuple[int, int, int]):
-        """Set a single pixel in the unified buffer"""
-        if 0 <= index < self.total_leds:
-            self.pixels[index] = color
-    
-    def set_pixels(self, colors: np.ndarray):
-        """Set all pixels from numpy array"""
-        if len(colors) == self.total_leds:
-            self.pixels = colors.astype(np.uint8)
-        else:
-            # Handle size mismatch with warning
-            logger.warning(f"Pattern provided {len(colors)} pixels but controller expects {self.total_leds}")
-            min_len = min(len(colors), self.total_leds)
-            self.pixels[:min_len] = colors[:min_len].astype(np.uint8)
-            # Clear any remaining pixels if pattern provided fewer
-            if len(colors) < self.total_leds:
-                self.pixels[min_len:] = 0
-    
-    def present(self):
-        """Push pixel buffer to all strips"""
-        for strip in self.strips:
-            try:
-                # Get the slice of pixels for this strip
-                start = strip.led_start
-                end = strip.led_end + 1
-                strip_pixels = self.pixels[start:end]
-                strip.set_pixels(strip_pixels)
-                strip.present()
-            except Exception as e:
-                logger.error(f"Failed to update strip {strip.id}: {e}")
-                # Continue updating other strips even if one fails
+        # Running state
+        self.running = False
         
-        # Update FPS counter
-        self.frame_count += 1
-        current_time = time.time()
-        if current_time - self.last_fps_time >= 1.0:
-            self.current_fps = self.frame_count / (current_time - self.last_fps_time)
-            self.frame_count = 0
-            self.last_fps_time = current_time
+        logger.info(f"LED Controller initialized with {self.total_leds} total LEDs")
+        logger.info(f"  Cap: {cap_config['led_count']} LEDs on {cap_config['spi_device']}")
+        logger.info(f"  Stem: {stem_config['led_count']} LEDs on {stem_config['spi_device']}")
     
-    def clear(self):
-        """Clear all LEDs (requires present() to update hardware)"""
-        self.pixels.fill(0)
+    def set_cap_pattern(self, pattern):
+        """
+        Set pattern for cap LEDs
+        
+        Args:
+            pattern: Pattern instance for cap (should be 450 LEDs)
+        """
+        if self.running:
+            raise RuntimeError("Cannot change patterns while running")
+        
+        if pattern.led_count != self.cap_controller.led_count:
+            logger.warning(f"Cap pattern expects {pattern.led_count} LEDs but cap has {self.cap_controller.led_count}")
+        
+        self.cap_controller.set_pattern(pattern)
     
-    def fill(self, color: Tuple[int, int, int]):
-        """Fill all LEDs with one color (requires present() to update hardware)"""
-        self.pixels[:] = color
+    def set_stem_pattern(self, pattern):
+        """
+        Set pattern for stem LEDs
+        
+        Args:
+            pattern: Pattern instance for stem (should be 250 LEDs)
+        """
+        if self.running:
+            raise RuntimeError("Cannot change patterns while running")
+        
+        if pattern.led_count != self.stem_controller.led_count:
+            logger.warning(f"Stem pattern expects {pattern.led_count} LEDs but stem has {self.stem_controller.led_count}")
+        
+        self.stem_controller.set_pattern(pattern)
+    
+    def start(self):
+        """Start pattern generation and SPI transmission threads"""
+        if self.running:
+            logger.warning("Controller already running")
+            return
+        
+        logger.info("Starting LED controller")
+        
+        # Start both strip controllers
+        self.cap_controller.start()
+        self.stem_controller.start()
+        
+        self.running = True
+        logger.info("LED controller started")
+    
+    def stop(self):
+        """Stop all threads and clear LEDs"""
+        if not self.running:
+            return
+        
+        logger.info("Stopping LED controller")
+        
+        # Stop both strip controllers
+        self.cap_controller.stop()
+        self.stem_controller.stop()
+        
+        self.running = False
+        logger.info("LED controller stopped")
     
     def set_brightness(self, brightness: int):
-        """Set global brightness for all strips (0-255)"""
-        # Validate brightness range
+        """
+        Set global brightness for all strips
+        
+        Args:
+            brightness: 0-255 brightness value
+        """
         if not 0 <= brightness <= 255:
             logger.warning(f"Brightness {brightness} out of range, clamping to 0-255")
             brightness = max(0, min(255, brightness))
         
-        for strip in self.strips:
-            try:
-                strip.set_brightness(brightness)
-            except Exception as e:
-                logger.error(f"Failed to set brightness for strip {strip.id}: {e}")
+        self.cap_controller.set_brightness(brightness)
+        self.stem_controller.set_brightness(brightness)
+        logger.info(f"Set global brightness to {brightness}")
     
-    def get_fps(self) -> float:
-        """Get current FPS"""
-        return self.current_fps
+    def set_cap_brightness(self, brightness: int):
+        """Set brightness for cap only"""
+        self.cap_controller.set_brightness(brightness)
     
-    def get_strip(self, strip_id: str) -> Optional[LEDStrip]:
-        """Get a specific strip by ID"""
-        return self.strip_map.get(strip_id)
+    def set_stem_brightness(self, brightness: int):
+        """Set brightness for stem only"""
+        self.stem_controller.set_brightness(brightness)
     
-    def set_stem_pixels(self, colors: np.ndarray):
-        """Set pixels for the stem interior only (requires present() to update hardware)"""
-        strip = self.strip_map.get('stem_interior')
-        if strip:
-            try:
-                if len(colors) != strip.led_count:
-                    logger.warning(f"Stem pixels: expected {strip.led_count} pixels, got {len(colors)}")
-                # Update main pixel buffer
-                start = strip.led_start
-                end = strip.led_end + 1
-                self.pixels[start:end] = colors[:strip.led_count]
-            except Exception as e:
-                logger.error(f"Failed to set stem pixels: {e}")
+    def get_health(self) -> Dict[str, Any]:
+        """
+        Get health status of all components
+        
+        Returns:
+            Dictionary with health information
+        """
+        return {
+            'running': self.running,
+            'cap': self.cap_controller.get_health(),
+            'stem': self.stem_controller.get_health(),
+            'total_leds': self.total_leds
+        }
     
-    def set_cap_pixels(self, colors: np.ndarray):
-        """Set pixels for the cap exterior only (requires present() to update hardware)"""
-        strip = self.strip_map.get('cap_exterior')
-        if strip:
-            try:
-                if len(colors) != strip.led_count:
-                    logger.warning(f"Cap pixels: expected {strip.led_count} pixels, got {len(colors)}")
-                # Update main pixel buffer
-                start = strip.led_start
-                end = strip.led_end + 1
-                self.pixels[start:end] = colors[:strip.led_count]
-            except Exception as e:
-                logger.error(f"Failed to set cap pixels: {e}")
+    def get_stats(self) -> Dict[str, Any]:
+        """
+        Get performance statistics
+        
+        Returns:
+            Dictionary with performance metrics
+        """
+        cap_health = self.cap_controller.get_health()
+        stem_health = self.stem_controller.get_health()
+        
+        return {
+            'cap_fps': cap_health['fps'],
+            'stem_fps': stem_health['fps'],
+            'cap_frames': cap_health['frames_generated'],
+            'stem_frames': stem_health['frames_generated'],
+            'cap_errors': cap_health['pattern_errors'] + cap_health['spi_errors'],
+            'stem_errors': stem_health['pattern_errors'] + stem_health['spi_errors']
+        }
     
     def cleanup(self):
-        """Clean shutdown"""
-        self.clear()
-        self.present()
+        """Clean shutdown of all resources"""
+        logger.info("Cleaning up LED controller")
         
-        # Close SPI devices
-        for strip in self.strips:
-            try:
-                if hasattr(strip.strip, 'spi') and strip.strip.spi:
-                    strip.strip.spi.close()
-                    logger.info(f"Closed SPI device for strip {strip.id}")
-            except Exception as e:
-                logger.error(f"Error closing SPI for strip {strip.id}: {e}")
+        # Stop if running
+        self.stop()
         
-        logger.info("LED Controller shutdown complete")
+        # Cleanup strip controllers (closes SPI devices)
+        self.cap_controller.cleanup()
+        self.stem_controller.cleanup()
+        
+        logger.info("LED controller cleanup complete")

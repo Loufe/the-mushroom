@@ -10,15 +10,14 @@ from .registry import PatternRegistry
 from effects.colors import hsv_to_rgb
 
 
-@PatternRegistry.register("rainbow_wave")
+@PatternRegistry.register("rainbow")
 class RainbowWave(Pattern):
     """Rainbow wave that travels along the LED strip"""
     
     def get_default_params(self) -> Dict[str, Any]:
         return {
-            'rainbow_count': 1.0,   # Number of complete rainbows visible (1.0 = one full rainbow)
-            'cycle_time': 10.0,     # Seconds for pattern to complete one full cycle
-            'brightness': 1.0,      # 0-1 brightness
+            'rainbow_count': 0.3,   # Number of complete rainbows visible (0.3 = partial rainbow for smooth gradient)
+            'cycle_time': 30.0,     # Seconds for pattern to complete one full cycle
             'saturation': 1.0,      # 0-1 color saturation
         }
     
@@ -34,39 +33,13 @@ class RainbowWave(Pattern):
         # phase shifts the pattern over time
         hues = (((positions + phase) * self.params['rainbow_count']) % 1.0) * 360
         
-        # Convert HSV to RGB
+        # Convert HSV to RGB with hardware brightness applied
         self.pixels = hsv_to_rgb(
             hues, 
             self.params['saturation'], 
-            self.params['brightness']
+            self.brightness
         )
         
         return self.pixels
 
 
-@PatternRegistry.register("rainbow_cycle")
-class RainbowCycle(Pattern):
-    """All LEDs cycle through rainbow together"""
-    
-    def get_default_params(self) -> Dict[str, Any]:
-        return {
-            'cycle_time': 5.0,      # Seconds per complete rainbow cycle
-            'brightness': 1.0,      # 0-1 brightness
-            'saturation': 1.0,      # 0-1 color saturation
-        }
-    
-    def update(self, delta_time: float) -> np.ndarray:
-        # Calculate current hue based on time
-        hue = (self.get_time() / self.params['cycle_time']) * 360
-        
-        # All LEDs get the same color
-        hues = np.full(self.led_count, hue)
-        
-        # Convert HSV to RGB
-        self.pixels = hsv_to_rgb(
-            hues,
-            self.params['saturation'],
-            self.params['brightness']
-        )
-        
-        return self.pixels

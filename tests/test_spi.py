@@ -1,113 +1,224 @@
 #!/usr/bin/env python3
 """
-SPI LED Test Script for Raspberry Pi 5
-Tests LED hardware using production LEDController abstraction
-Run with: sudo python3 test_spi.py
+Hardware Test for Mushroom LED Controller
+Tests LED hardware using new pattern-based architecture
 """
 
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from src.hardware.led_controller import LEDController
-import numpy as np
 import time
 import argparse
+import numpy as np
+from pathlib import Path
 
-def run_comprehensive_test(controller):
-    """Run comprehensive LED hardware test"""
-    print("\n" + "="*60)
-    print("LED HARDWARE TEST - Using Production Controller")
-    print("="*60)
+# Add src to path
+sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+
+from hardware.led_controller import LEDController
+from patterns.base import Pattern
+import logging
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+class TestPattern(Pattern):
+    """Simple test pattern for hardware validation"""
     
+    def __init__(self, led_count: int, color=(0, 0, 0)):
+        super().__init__(led_count)
+        self.color = color
+        self.test_mode = 'solid'
+        
+    def get_default_params(self):
+        return {}
+    
+    def update(self, delta_time: float) -> np.ndarray:
+        if self.test_mode == 'solid':
+            # Solid color
+            self.pixels[:] = self.color
+        elif self.test_mode == 'gradient':
+            # Gradient test
+            for i in range(self.led_count):
+                intensity = int((i / self.led_count) * 255)
+                self.pixels[i] = [intensity, intensity, intensity]
+        elif self.test_mode == 'chase':
+            # Chase pattern
+            self.pixels.fill(0)
+            position = int((time.time() * 100) % self.led_count)
+            self.pixels[position] = [255, 255, 255]
+        
+        return self.pixels
+    
+    def set_color(self, color):
+        """Set solid color"""
+        self.color = color
+        self.test_mode = 'solid'
+    
+    def set_test_mode(self, mode):
+        """Set test mode"""
+        self.test_mode = mode
+
+
+def run_comprehensive_test(controller: LEDController) -> bool:
+    """
+    Run comprehensive hardware test
+    
+    Args:
+        controller: Configured LED controller
+        
+    Returns:
+        True if all tests pass
+    """
     try:
-        # Get both strips
-        stem = controller.strip_map.get('stem_interior')
-        cap = controller.strip_map.get('cap_exterior')
+        print("\n" + "="*60)
+        print("LED HARDWARE TEST - PATTERN ARCHITECTURE")
+        print("="*60)
         
-        if not stem or not cap:
-            print("✗ Could not find required strips in controller")
-            return False
+        # Create test patterns
+        cap_pattern = TestPattern(450)
+        stem_pattern = TestPattern(250)
         
-        print(f"\nConfiguration:")
-        print(f"  Stem: {stem.led_count} LEDs on {stem.spi_device}")
-        print(f"  Cap:  {cap.led_count} LEDs on {cap.spi_device}")
-        print(f"  Total: {controller.total_leds} LEDs")
+        # Set patterns on controller
+        controller.set_cap_pattern(cap_pattern)
+        controller.set_stem_pattern(stem_pattern)
+        
+        # Start controller
+        print("\nStarting controller threads...")
+        controller.start()
+        time.sleep(1)  # Let threads initialize
         
         # Phase 1: Test Stem Strip
         print(f"\n{'='*60}")
-        print("PHASE 1: Testing Stem Interior Strip")
+        print("PHASE 1: Testing Stem Interior Strip (250 LEDs)")
         print(f"{'='*60}")
         
-        print("\n1.1 Basic colors (5 seconds each)...")
+        print("\n1.1 Basic colors (3 seconds each)...")
         for color_name, color in [("RED", (255, 0, 0)), 
                                   ("GREEN", (0, 255, 0)), 
                                   ("BLUE", (0, 0, 255))]:
             print(f"     {color_name}")
-            stem.fill(color)
-            stem.present()
-            cap.clear()
-            cap.present()  # Keep cap off
-            time.sleep(5)
+            stem_pattern.set_color(color)
+            cap_pattern.set_color((0, 0, 0))  # Keep cap off
+            time.sleep(3)
         
-        print("\n1.2 White brightness test (1 second each)...")
-        print("     Note: Using controller API for consistent brightness")
-        white_pixels = np.full((controller.total_leds, 3), 255, dtype=np.uint8)
-        for brightness, percent in [(25, "10%"), (64, "25%"), (128, "50%"), (192, "75%"), (255, "100%")]:
-            print(f"     White at {percent} brightness ({brightness}/255)")
-            controller.set_brightness(brightness)
-            controller.set_pixels(white_pixels)
-            controller.present()
-            time.sleep(1)
-        controller.set_brightness(128)  # Reset to default
+        print("\n1.2 White brightness test (2 seconds each)...")
+        for brightness in [25, 64, 128, 192, 255]:
+            percent = int((brightness / 255) * 100)
+            print(f"     White at {percent}% brightness ({brightness}/255)")
+            controller.set_stem_brightness(brightness)
+            stem_pattern.set_color((255, 255, 255))
+            time.sleep(2)
+        controller.set_stem_brightness(128)  # Reset to default
         
         # Phase 2: Test Cap Strip
         print(f"\n{'='*60}")
-        print("PHASE 2: Testing Cap Exterior Strip")
+        print("PHASE 2: Testing Cap Exterior Strip (450 LEDs)")
         print(f"{'='*60}")
         
-        print("\n2.1 Basic colors (5 seconds each)...")
+        print("\n2.1 Basic colors (3 seconds each)...")
         for color_name, color in [("RED", (255, 0, 0)), 
                                   ("GREEN", (0, 255, 0)), 
                                   ("BLUE", (0, 0, 255))]:
             print(f"     {color_name}")
-            stem.clear()
-            stem.present()  # Keep stem off
-            cap.fill(color)
-            cap.present()
-            time.sleep(5)
+            cap_pattern.set_color(color)
+            stem_pattern.set_color((0, 0, 0))  # Keep stem off
+            time.sleep(3)
         
-        print("\n2.2 White brightness test (1 second each)...")
-        for brightness, percent in [(25, "10%"), (64, "25%"), (128, "50%"), (192, "75%"), (255, "100%")]:
-            print(f"     White at {percent}")
-            cap.set_brightness(brightness)
-            cap.fill((255, 255, 255))
-            cap.present()
-            time.sleep(1)
-        cap.set_brightness(128)  # Reset to default
+        print("\n2.2 White brightness test (2 seconds each)...")
+        for brightness in [25, 64, 128, 192, 255]:
+            percent = int((brightness / 255) * 100)
+            print(f"     White at {percent}% brightness ({brightness}/255)")
+            controller.set_cap_brightness(brightness)
+            cap_pattern.set_color((255, 255, 255))
+            time.sleep(2)
+        controller.set_cap_brightness(128)  # Reset to default
         
+        # Phase 3: Test Both Strips Together
+        print(f"\n{'='*60}")
+        print("PHASE 3: Testing Both Strips")
+        print(f"{'='*60}")
+        
+        print("\n3.1 Both strips white...")
+        cap_pattern.set_color((255, 255, 255))
+        stem_pattern.set_color((255, 255, 255))
+        time.sleep(3)
+        
+        print("\n3.2 Complementary colors...")
+        print("     Cap: RED, Stem: GREEN")
+        cap_pattern.set_color((255, 0, 0))
+        stem_pattern.set_color((0, 255, 0))
+        time.sleep(3)
+        
+        print("     Cap: BLUE, Stem: YELLOW")
+        cap_pattern.set_color((0, 0, 255))
+        stem_pattern.set_color((255, 255, 0))
+        time.sleep(3)
+        
+        # Phase 4: Performance Test
+        print(f"\n{'='*60}")
+        print("PHASE 4: Performance Test")
+        print(f"{'='*60}")
+        
+        print("\n4.1 Chase pattern on both strips (10 seconds)...")
+        cap_pattern.set_test_mode('chase')
+        stem_pattern.set_test_mode('chase')
+        
+        # Monitor performance for 10 seconds
+        start_time = time.time()
+        last_log = start_time
+        
+        while time.time() - start_time < 10:
+            current_time = time.time()
+            if current_time - last_log >= 2:
+                stats = controller.get_stats()
+                print(f"     Cap: {stats['cap_fps']:.1f} FPS, Stem: {stats['stem_fps']:.1f} FPS")
+                last_log = current_time
+            time.sleep(0.1)
         
         # Clear everything
         print("\nClearing all LEDs...")
-        controller.clear()
-        controller.present()
+        cap_pattern.set_color((0, 0, 0))
+        stem_pattern.set_color((0, 0, 0))
+        time.sleep(1)
+        
+        # Stop controller
+        print("Stopping controller...")
+        controller.stop()
         
         print(f"\n{'='*60}")
         print("✓ ALL TESTS COMPLETE - Hardware functioning correctly!")
         print(f"{'='*60}")
+        
+        # Final performance report
+        stats = controller.get_stats()
+        print(f"\nFinal Statistics:")
+        print(f"  Cap: {stats['cap_frames']} frames at {stats['cap_fps']:.1f} FPS")
+        print(f"  Stem: {stats['stem_frames']} frames at {stats['stem_fps']:.1f} FPS")
+        print(f"  Total errors: {stats['cap_errors'] + stats['stem_errors']}")
+        
         return True
         
     except Exception as e:
         print(f"\n✗ Test failed with error: {e}")
         import traceback
         traceback.print_exc()
-        controller.clear()  # Ensure LEDs are cleared on error
-        controller.present()
+        
+        # Try to stop controller
+        try:
+            controller.stop()
+        except:
+            pass
+        
         return False
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Test LED hardware using production controller')
+    parser = argparse.ArgumentParser(description='Test LED hardware using pattern controller')
     parser.add_argument('--config', '-c',
                        default='config/led_config.yaml',
                        help='Path to LED configuration file')
@@ -120,7 +231,7 @@ def main():
     
     print("\n" + "="*60)
     print("Raspberry Pi 5 LED Hardware Test")
-    print("Using Production LEDController")
+    print("Using Pattern-Based Controller")
     print("="*60)
     print("\nIMPORTANT: Run with sudo!")
     print("Make sure SPI is enabled in dietpi-config")

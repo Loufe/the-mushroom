@@ -40,6 +40,7 @@ class AudioStream:
         self.sample_rate = config.get('sample_rate', 44100)
         self.buffer_size = config.get('buffer_size', 512)
         self.device_id = config.get('device_id', None)
+        self.gain = config.get('gain', 1.0)  # Software gain multiplier
         
         # Signal monitoring
         self.current_level = 0.0
@@ -116,10 +117,14 @@ class AudioStream:
                 if audio_data.ndim > 1:
                     audio_data = audio_data[:, 0]
                 
+                # Apply gain if needed
+                if self.gain != 1.0:
+                    audio_data = np.clip(audio_data * self.gain, -1.0, 1.0)
+                
                 # Update statistics
                 self.frames_read += len(audio_data)
                 
-                # Calculate signal levels
+                # Calculate signal levels (after gain)
                 self.current_level = float(np.sqrt(np.mean(audio_data**2)))
                 peak = float(np.max(np.abs(audio_data)))
                 self.peak_level = max(peak, self.peak_level * self.peak_decay)
