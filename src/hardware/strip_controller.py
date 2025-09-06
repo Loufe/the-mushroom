@@ -18,7 +18,7 @@ class StripController:
     
     # Class constants
     WAIT_TIMEOUT_MS = 100  # Thread wait timeout in milliseconds
-    WS2811_LATCH_DELAY = 0.0002  # 200µs reset period required by WS2811 protocol
+    WS2811_LATCH_DELAY = 0.00024  # 240µs reset period required by WS2811 protocol
     
     def __init__(self, name: str, strip_config: dict, hardware_config: dict):
         """
