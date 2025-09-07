@@ -35,8 +35,14 @@ class LEDController:
         if not self.config or 'strips' not in self.config:
             raise ValueError(f"Config missing 'strips' section in {config_path}")
         
-        # Get hardware config
-        hardware_config = self.config.get('hardware', {})
+        # Get hardware and timing configs - fail fast if missing
+        if 'hardware' not in self.config:
+            raise ValueError(f"Config missing 'hardware' section in {config_path}")
+        hardware_config = self.config['hardware']
+        
+        if 'timing' not in self.config:
+            raise ValueError(f"Config missing 'timing' section in {config_path}")
+        timing_config = self.config['timing']
         
         # Find cap and stem configurations
         cap_config = None
@@ -52,8 +58,8 @@ class LEDController:
             raise ValueError("Configuration must define both 'cap_exterior' and 'stem_interior' strips")
         
         # Create strip controllers
-        self.cap_controller = StripController('cap', cap_config, hardware_config)
-        self.stem_controller = StripController('stem', stem_config, hardware_config)
+        self.cap_controller = StripController('cap', cap_config, hardware_config, timing_config)
+        self.stem_controller = StripController('stem', stem_config, hardware_config, timing_config)
         
         # Track total LED count for compatibility
         self.total_leds = cap_config['led_count'] + stem_config['led_count']

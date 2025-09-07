@@ -16,11 +16,7 @@ logger = logging.getLogger(__name__)
 class StripController:
     """Controls a single LED strip with dedicated pattern and SPI threads"""
     
-    # Class constants
-    WAIT_TIMEOUT_MS = 100  # Thread wait timeout in milliseconds
-    WS2811_LATCH_DELAY = 0.00024  # 240µs reset period required by WS2811 protocol
-    
-    def __init__(self, name: str, strip_config: dict, hardware_config: dict):
+    def __init__(self, name: str, strip_config: dict, hardware_config: dict, timing_config: dict):
         """
         Initialize strip controller
         
@@ -36,10 +32,17 @@ class StripController:
         self.led_start = strip_config['led_start']
         self.led_end = strip_config['led_end']
         
-        # Hardware settings
-        self.spi_speed = hardware_config.get('spi_speed_khz', 800)
-        self.brightness = hardware_config.get('brightness', 128)
+        # Hardware settings - fail fast if missing
+        self.spi_speed = hardware_config['spi_speed_khz']
+        self.brightness = hardware_config['brightness']
         self._brightness_factor = self.brightness / 255.0
+        
+        # Timing configuration - fail fast if missing
+        self.WAIT_TIMEOUT_MS = timing_config['thread_timeout_ms']
+        self.WS2811_LATCH_DELAY = timing_config['ws2811_latch_delay_ms'] / 1000.0  # Convert ms to seconds
+        self.MAX_ERRORS = timing_config['max_consecutive_errors']
+        self.METRICS_WINDOW_SECONDS = timing_config['metrics_window_seconds']
+        self.FPS_UPDATE_INTERVAL = timing_config['fps_update_interval']
         
         # Pattern (will be set later)
         self.pattern = None
@@ -61,7 +64,6 @@ class StripController:
         # Error handling
         self.pattern_error_count = 0
         self.spi_error_count = 0
-        self.MAX_ERRORS = 3
         
         # Health monitoring
         self.last_pattern_heartbeat = time.time()
@@ -83,7 +85,6 @@ class StripController:
             'spi_wait': {'count': 0, 'sum': 0.0, 'min': float('inf'), 'max': 0.0, 'last': 0.0}
         }
         self.metrics_start_time = time.time()
-        self.METRICS_WINDOW_SECONDS = 300  # 5-minute rolling window
         
         # Initialize SPI device
         try:
@@ -305,7 +306,7 @@ class StripController:
                 
                 # Update FPS
                 current_time = time.time()
-                if current_time - self.last_fps_time >= 1.0:
+                if current_time - self.last_fps_time >= self.FPS_UPDATE_INTERVAL:
                     self.current_fps = self.frames_transmitted / (current_time - self.last_fps_time)
                     self.frames_transmitted = 0
                     self.last_fps_time = current_time

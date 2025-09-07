@@ -21,7 +21,7 @@ strips:
 
 # Hardware settings for Pi5Neo
 hardware:
-  spi_speed_khz: 3200    # SPI clock frequency (3.2 MHz for WS2811 800kbps data rate)
+  spi_speed_khz: 800     # WS2811 data rate (library multiplies by 8 for SPI clock)
   brightness: 128        # Global brightness (0-255)
   strip_type: "WS2811"   # LED type
   color_order: "RGB"     # Color order (RGB, GRB, etc.)
@@ -30,6 +30,14 @@ hardware:
 performance:
   target_fps: 30  # Minimum acceptable FPS
   max_fps: 60     # Target FPS for smooth animations
+
+# Timing parameters (critical for protocol and thread coordination)
+timing:
+  ws2811_latch_delay_ms: 0.24    # Reset period in milliseconds (min 0.05 for WS2811)
+  thread_timeout_ms: 100          # Thread coordination timeout in milliseconds
+  max_consecutive_errors: 3       # Errors before thread shutdown
+  metrics_window_seconds: 300     # Performance metric rolling window (5 minutes)
+  fps_update_interval: 1.0        # How often to calculate FPS (seconds)
   
 # Audio settings for reactive patterns
 audio:
