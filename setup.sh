@@ -65,6 +65,34 @@ show_status() {
         echo -e "${RED}✗${NC} SPI not configured"
     fi
     
+    # Check GPIO drive strength for both SPI channels
+    CONFIG_FILE=""
+    if [ -f /boot/config.txt ]; then
+        CONFIG_FILE="/boot/config.txt"
+    elif [ -f /boot/firmware/config.txt ]; then
+        CONFIG_FILE="/boot/firmware/config.txt"
+    fi
+    
+    if [ -n "$CONFIG_FILE" ]; then
+        GPIO10_OK=false
+        GPIO20_OK=false
+        
+        if grep -q "^gpio=10=.*dh" "$CONFIG_FILE" 2>/dev/null; then
+            GPIO10_OK=true
+        fi
+        if grep -q "^gpio=20=.*dh" "$CONFIG_FILE" 2>/dev/null; then
+            GPIO20_OK=true
+        fi
+        
+        if [ "$GPIO10_OK" = true ] && [ "$GPIO20_OK" = true ]; then
+            echo -e "${GREEN}✓${NC} GPIO 10 & 20 high drive strength configured"
+        elif [ "$GPIO10_OK" = true ] || [ "$GPIO20_OK" = true ]; then
+            echo -e "${YELLOW}○${NC} Partial GPIO drive strength configured"
+        else
+            echo -e "${YELLOW}○${NC} GPIO drive strength not configured"
+        fi
+    fi
+    
     # Check service
     if systemctl is-active --quiet mushroom-lights 2>/dev/null; then
         echo -e "${GREEN}✓${NC} Service is running"
@@ -230,6 +258,90 @@ check_spi() {
         fi
     else
         echo -e "${GREEN}✓ SPI properly configured${NC}"
+    fi
+}
+
+# Function to configure GPIO drive strength for better signal integrity
+config_gpio_drive() {
+    echo -e "\n${BLUE}Configuring GPIO drive strength for SPI signals...${NC}"
+    
+    # Determine config file location
+    CONFIG_FILE=""
+    if [ -f /boot/config.txt ]; then
+        CONFIG_FILE="/boot/config.txt"
+    elif [ -f /boot/firmware/config.txt ]; then
+        CONFIG_FILE="/boot/firmware/config.txt"
+    else
+        echo -e "${YELLOW}⚠ Could not locate boot config file${NC}"
+        echo "GPIO drive strength configuration skipped"
+        return
+    fi
+    
+    # Check both GPIO pins used for SPI
+    # GPIO 10 (Pin 19) - SPI0 MOSI for cap (450 LEDs)
+    # GPIO 20 (Pin 38) - SPI1 MOSI for stem (250 LEDs)
+    
+    local NEEDS_UPDATE=false
+    local GPIO10_OK=false
+    local GPIO20_OK=false
+    
+    # Check GPIO 10
+    if grep -q "^gpio=10=.*dh" "$CONFIG_FILE"; then
+        echo -e "${GREEN}✓ GPIO 10 (SPI0/Cap) high drive strength already enabled${NC}"
+        GPIO10_OK=true
+    elif grep -q "^gpio=10=" "$CONFIG_FILE"; then
+        echo -e "${YELLOW}⚠ GPIO 10 configured but not set to high drive${NC}"
+        NEEDS_UPDATE=true
+    else
+        echo -e "${YELLOW}⚠ GPIO 10 (SPI0/Cap) drive strength not configured${NC}"
+        NEEDS_UPDATE=true
+    fi
+    
+    # Check GPIO 20
+    if grep -q "^gpio=20=.*dh" "$CONFIG_FILE"; then
+        echo -e "${GREEN}✓ GPIO 20 (SPI1/Stem) high drive strength already enabled${NC}"
+        GPIO20_OK=true
+    elif grep -q "^gpio=20=" "$CONFIG_FILE"; then
+        echo -e "${YELLOW}⚠ GPIO 20 configured but not set to high drive${NC}"
+        NEEDS_UPDATE=true
+    else
+        echo -e "${YELLOW}⚠ GPIO 20 (SPI1/Stem) drive strength not configured${NC}"
+        NEEDS_UPDATE=true
+    fi
+    
+    # If both are OK, we're done
+    if [ "$GPIO10_OK" = true ] && [ "$GPIO20_OK" = true ]; then
+        echo -e "${GREEN}✓ Both SPI GPIO pins configured correctly${NC}"
+        return
+    fi
+    
+    # Otherwise offer to configure
+    if [ "$NEEDS_UPDATE" = true ]; then
+        echo -e "\n${YELLOW}High drive strength improves signal integrity through the 74AHCT125 level shifter${NC}"
+        echo "This helps prevent flickering and data corruption at high speeds"
+        read -p "Configure GPIO pins for high drive strength (16mA)? (y/n): " -n 1 -r
+        echo
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            # Backup config file
+            sudo cp "$CONFIG_FILE" "${CONFIG_FILE}.bak"
+            
+            # Remove any existing GPIO 10/20 configs
+            sudo sed -i '/^gpio=10=/d' "$CONFIG_FILE"
+            sudo sed -i '/^gpio=20=/d' "$CONFIG_FILE"
+            
+            # Add GPIO configuration
+            echo "" | sudo tee -a "$CONFIG_FILE" > /dev/null
+            echo "# Mushroom LED - High drive strength for SPI signals through 74AHCT125" | sudo tee -a "$CONFIG_FILE" > /dev/null
+            echo "gpio=10=op,dh  # SPI0 MOSI (Pin 19) for cap exterior" | sudo tee -a "$CONFIG_FILE" > /dev/null
+            echo "gpio=20=op,dh  # SPI1 MOSI (Pin 38) for stem interior" | sudo tee -a "$CONFIG_FILE" > /dev/null
+            
+            echo -e "${GREEN}✓ GPIO 10 and 20 configured for high drive strength${NC}"
+            echo -e "${YELLOW}⚠ Reboot required for changes to take effect${NC}"
+        else
+            echo -e "${YELLOW}Skipping GPIO configuration${NC}"
+            echo "Note: You may experience flickering without increased drive strength"
+        fi
     fi
 }
 
@@ -427,6 +539,7 @@ main() {
     check_raspberry_pi
     check_python
     check_spi
+    config_gpio_drive
     check_system_deps
     
     # Setup environment
