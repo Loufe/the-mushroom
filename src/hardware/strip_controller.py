@@ -299,7 +299,7 @@ class StripController:
                 self.spi.update_strip(sleep_duration=None)
                 # CRITICAL FIX: Actively drive line LOW for WS2811 reset
                 # This solves the 74AHCT125 high-impedance issue
-                self.spi.spi.xfer3([0x00] * 200)  # ~250µs of LOW at 6.4MHz
+                self.spi.spi.xfer3([0x00] * 50)  # ~60µs of LOW (minimum is 50µs)
                 spi_time_ms = (time.perf_counter() - spi_start) * 1000
                 self._record_metric('spi_transmit', spi_time_ms)
                 
@@ -336,7 +336,7 @@ class StripController:
             self.spi.clear_strip()
             self.spi.update_strip(sleep_duration=None)
             # Actively drive line LOW for reset
-            self.spi.spi.xfer3([0x00] * 200)
+            self.spi.spi.xfer3([0x00] * 50)
         except Exception as e:
             self.logger.error(f"Failed to clear {self.name} LEDs: {e}")
     
