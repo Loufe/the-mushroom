@@ -4,11 +4,11 @@
 
 strips:
   - id: cap_exterior
-    led_count: 450
+    led_count: 25
     description: "Exterior cap illumination (wired first in chain)"
     
   - id: stem_interior
-    led_count: 250
+    led_count: 25
     description: "Interior stem lighting (wired second in chain)"
 
 # Hardware settings for Pi5Neo

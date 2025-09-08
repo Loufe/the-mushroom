@@ -121,27 +121,25 @@ class LEDController:
         
         logger.info(f"LED Controller initialized: {self.cap_led_count} cap + {self.stem_led_count} stem = {self.total_leds} total")
     
-    def set_cap_pattern(self, pattern):
-        """Set pattern for cap LEDs"""
+    def _set_pattern(self, pattern, expected_count: int, zone_name: str):
+        """Helper to set a pattern with validation"""
         if self.running:
             raise RuntimeError("Cannot change patterns while running")
         
-        if pattern.led_count != self.cap_led_count:
-            logger.warning(f"Cap pattern expects {pattern.led_count} LEDs but cap has {self.cap_led_count}")
+        if pattern.led_count != expected_count:
+            # Non-fatal: patterns auto-created with correct count, this catches manual mismatches
+            logger.warning(f"{zone_name} pattern expects {pattern.led_count} LEDs but {zone_name.lower()} has {expected_count}")
         
         pattern.set_brightness(self._brightness_factor)
-        self.cap_pattern = pattern
+        return pattern
+    
+    def set_cap_pattern(self, pattern):
+        """Set pattern for cap LEDs"""
+        self.cap_pattern = self._set_pattern(pattern, self.cap_led_count, "Cap")
     
     def set_stem_pattern(self, pattern):
         """Set pattern for stem LEDs"""
-        if self.running:
-            raise RuntimeError("Cannot change patterns while running")
-        
-        if pattern.led_count != self.stem_led_count:
-            logger.warning(f"Stem pattern expects {pattern.led_count} LEDs but stem has {self.stem_led_count}")
-        
-        pattern.set_brightness(self._brightness_factor)
-        self.stem_pattern = pattern
+        self.stem_pattern = self._set_pattern(pattern, self.stem_led_count, "Stem")
     
     def start(self):
         """Start pattern generation and SPI transmission threads"""
@@ -259,7 +257,7 @@ class LEDController:
         # Stop if running
         self.stop()
         
-        # Close SPI device
+        # Close SPI device (Pi5Neo library lacks cleanup, so we access spidev directly)
         if hasattr(self.spi, 'spi') and self.spi.spi:
             self.spi.spi.close()
         

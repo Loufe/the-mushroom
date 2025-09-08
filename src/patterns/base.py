@@ -57,15 +57,14 @@ class Pattern(ABC):
         pass
     
     def render(self) -> np.ndarray:
-        """Main render loop - handles timing and calls update()"""
+        """Generate next frame - called when controller needs new data"""
         current_time = time.time()
         delta_time = current_time - self.last_update
         
-        # Only update if enough time has passed
-        if delta_time >= self.frame_time:
-            self.pixels = self.update(delta_time)
-            self.last_update = current_time
-            self.frame_number += 1
+        # Always generate fresh frame - controller handles timing
+        self.pixels = self.update(delta_time)
+        self.last_update = current_time
+        self.frame_number += 1
         
         return self.pixels.copy()
     

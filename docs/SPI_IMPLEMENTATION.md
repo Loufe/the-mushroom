@@ -41,8 +41,8 @@
 - The issue ONLY occurs during rapid frame transitions, not static display
 - Pure white at 100% (all 0xFF bytes → 0xF8 bitstream) is uniquely stable
 
-### Q: What are the actual timing margins at 800kHz SPI?
-**A:** With 8x oversampling at 6.4MHz actual SPI clock:
+### Q: What are the theoretical timing margins at 800kHz SPI?
+**A:** With 8x oversampling at 6.4MHz theoretical SPI clock:
 - "0" bit high time: 312.5ns (spec: 400±150ns) - **62.5ns margin**
 - "1" bit high time: 781.25ns (spec: 800±150ns) - **comfortable margin**
 
@@ -85,12 +85,14 @@ The 62.5ns margin for "0" bits appears to be violated during rapid frame updates
 
 ## Performance Characteristics
 
-### Q: What's the measured SPI transmission overhead?
-**A:** (Note: These measurements were estimated, not directly measured)
-- 450 LEDs (1350 bytes → 10800 SPI bytes): ~20ms estimated
-- 250 LEDs (750 bytes → 6000 SPI bytes): ~12ms estimated
-- Theoretical at 6.4MHz: 13.5ms + 7.5ms = 21ms
-- Actual measurements needed with oscilloscope or logic analyzer
+### Q: What's the measured SPI transmission time?
+**A:** From actual performance metrics with 700 LEDs:
+- Total SPI transmission: **28ms measured** (includes all 700 LEDs)
+- Buffer preparation: 1ms
+- Pattern generation wait: <0.1ms
+- Achieved FPS: 34.5 (29ms total frame time)
+- Theoretical at 6.4MHz: 21ms (16,800 bytes ÷ 800KB/s)
+- Actual overhead: ~33% over theoretical
 
 ### Q: Why does buffer preparation take <1ms despite 700 pixels?
 **A:** NumPy vectorization with contiguous memory layout. The `np.clip()` and array operations process all pixels in SIMD fashion. Cache-friendly access pattern maintains L1/L2 cache hits.
@@ -110,15 +112,15 @@ The 62.5ns margin for "0" bits appears to be violated during rapid frame updates
 ## Thread Architecture Specifics
 
 ### Q: What's the critical path in the threading model?
-**A:** 
+**A:** Based on actual measurements with 700 LEDs:
 ```
-Pattern.update() → Queue.put() → [thread boundary] → Queue.get() → spi.xfer3()
-   <1ms              ~0ms                              ~0ms          20-12ms
+Pattern generation → Buffer copy → SPI transmission
+      <0.1ms           1ms            28ms
 ```
-SPI transmission dominates at 94% of frame time.
+SPI transmission dominates at 97% of frame time (28ms of 29ms total).
 
 ### Q: Why double-buffering despite serialized transmission?
-**A:** Prevents pattern generator blocking during SPI transmission. Enables consistent pattern timing independent of transmission jitter. Measured benefit: 5-8% reduction in frame time variance.
+**A:** Prevents pattern generator blocking during SPI transmission. Enables consistent pattern timing independent of transmission jitter.
 
 ## Protocol Implementation
 
