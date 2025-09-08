@@ -45,6 +45,17 @@ class LEDController:
         self.brightness = hardware_config['brightness']
         self._brightness_factor = self.brightness / 255.0
         
+        # Get timing config - critical for performance
+        if 'timing' not in self.config:
+            raise ValueError(f"Config missing 'timing' section in {config_path}")
+        timing_config = self.config['timing']
+        
+        if 'ws2811_latch_delay_ms' not in timing_config:
+            raise ValueError("Config missing 'timing.ws2811_latch_delay_ms'")
+        
+        self.latch_delay = timing_config['ws2811_latch_delay_ms'] / 1000.0
+        logger.info(f"Loaded latch_delay: {self.latch_delay}s ({timing_config['ws2811_latch_delay_ms']}ms)")
+        
         # Get LED counts from config
         if 'strips' not in self.config:
             raise ValueError(f"Config missing 'strips' section in {config_path}")
@@ -177,7 +188,7 @@ class LEDController:
         
         # Clear LEDs
         self.spi.clear_strip()
-        self.spi.update_strip()
+        self.spi.update_strip(sleep_duration=self.latch_delay)
         
         logger.info("LED controller stopped")
     
@@ -329,9 +340,6 @@ class LEDController:
                 with self.stem_buffer_lock:
                     stem_pixels = self.stem_buffer.copy()
                 
-                self.cap_consumed.set()
-                self.stem_consumed.set()
-                
                 for i in range(self.cap_led_count):
                     r, g, b = cap_pixels[i]
                     self.spi.set_led_color(i, r, g, b)
@@ -342,8 +350,11 @@ class LEDController:
                 self.last_buffer_prep_ms = (time.time() - copy_start) * 1000
                 
                 spi_start = time.time()
-                self.spi.update_strip()
+                self.spi.update_strip(sleep_duration=self.latch_delay)
                 self.last_spi_transmit_ms = (time.time() - spi_start) * 1000
+                
+                self.cap_consumed.set()
+                self.stem_consumed.set()
                 
                 self.frames_sent += 1
                 current_time = time.time()
