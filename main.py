@@ -61,30 +61,30 @@ class MushroomLights:
         Set patterns for cap and stem
         
         Args:
-            cap_pattern_name: Pattern name for cap LEDs (450 pixels)
-            stem_pattern_name: Pattern name for stem LEDs (250 pixels)
+            cap_pattern_name: Pattern name for cap LEDs
+            stem_pattern_name: Pattern name for stem LEDs
             
         Returns:
             True if both patterns set successfully
         """
         success = True
         
-        # Create cap pattern
+        # Create cap pattern with dynamic LED count from config
         if cap_pattern_name:
-            cap_pattern = self.registry.create_pattern(cap_pattern_name, 450)
+            cap_pattern = self.registry.create_pattern(cap_pattern_name, self.controller.cap_led_count)
             if cap_pattern:
                 self.controller.set_cap_pattern(cap_pattern)
-                logger.info(f"Set cap pattern: {cap_pattern_name}")
+                logger.info(f"Set cap pattern: {cap_pattern_name} ({self.controller.cap_led_count} LEDs)")
             else:
                 logger.error(f"Failed to create cap pattern: {cap_pattern_name}")
                 success = False
         
-        # Create stem pattern
+        # Create stem pattern with dynamic LED count from config
         if stem_pattern_name:
-            stem_pattern = self.registry.create_pattern(stem_pattern_name, 250)
+            stem_pattern = self.registry.create_pattern(stem_pattern_name, self.controller.stem_led_count)
             if stem_pattern:
                 self.controller.set_stem_pattern(stem_pattern)
-                logger.info(f"Set stem pattern: {stem_pattern_name}")
+                logger.info(f"Set stem pattern: {stem_pattern_name} ({self.controller.stem_led_count} LEDs)")
             else:
                 logger.error(f"Failed to create stem pattern: {stem_pattern_name}")
                 success = False
@@ -156,22 +156,16 @@ class MushroomLights:
                         cap_pattern_name = None
                         stem_pattern_name = None
                         
-                        try:
-                            if hasattr(self.controller.cap_controller, 'pattern') and self.controller.cap_controller.pattern:
-                                cap_pattern_name = self.controller.cap_controller.pattern.__class__.__name__
-                        except AttributeError:
-                            pass
+                        if hasattr(self.controller, 'cap_pattern') and self.controller.cap_pattern:
+                            cap_pattern_name = self.controller.cap_pattern.__class__.__name__
                         
-                        try:
-                            if hasattr(self.controller.stem_controller, 'pattern') and self.controller.stem_controller.pattern:
-                                stem_pattern_name = self.controller.stem_controller.pattern.__class__.__name__
-                        except AttributeError:
-                            pass
+                        if hasattr(self.controller, 'stem_pattern') and self.controller.stem_pattern:
+                            stem_pattern_name = self.controller.stem_pattern.__class__.__name__
                         
                         metrics = {
                             'timestamp': current_time,
-                            'cap': self.controller.cap_controller.get_performance_details(),
-                            'stem': self.controller.stem_controller.get_performance_details(),
+                            'fps': self.controller.current_fps,
+                            'frames_sent': self.controller.frames_sent,
                             'patterns': {
                                 'cap': cap_pattern_name,
                                 'stem': stem_pattern_name
@@ -207,13 +201,13 @@ def main():
         '--cap-pattern',
         default=None,
         choices=available_patterns if available_patterns else None,
-        help='Pattern for cap LEDs (450 pixels)'
+        help='Pattern for cap LEDs'
     )
     parser.add_argument(
         '--stem-pattern',
         default=None,
         choices=available_patterns if available_patterns else None,
-        help='Pattern for stem LEDs (250 pixels)'
+        help='Pattern for stem LEDs'
     )
     parser.add_argument(
         '--pattern', '-p',

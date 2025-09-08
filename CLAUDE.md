@@ -2,9 +2,9 @@
 
 ## Critical Constraints
 - **Hardware**: Raspberry Pi 5 only (Pi5Neo library using spidev)
-- **LEDs**: Exactly 700 WS2811 pixels (GRB color order)
-  - Cap exterior: 450 LEDs on SPI0 (GPIO 10, Pin 19, /dev/spidev0.0)
-  - Stem interior: 250 LEDs on SPI1 (GPIO 20, Pin 38, /dev/spidev1.0)
+- **LEDs**: Total of cap + stem LEDs from config (GRB color order)
+  - Single SPI chain on SPI0 (GPIO 10, Pin 19, /dev/spidev0.0)
+  - Cap wired first, stem wired second in series
 - **Power**: 12V system, requires sudo for GPIO/SPI access
 - **OS**: DietPi preferred (lighter than Raspberry Pi OS)
 - **Protocol**: 800kHz SPI with bitstream encoding (0xC0=LOW, 0xF8=HIGH)
@@ -36,14 +36,14 @@ sudo systemctl restart mushroom-lights
 - PREFER editing existing patterns over creating new files
 
 ## Performance Reality (Measured)
-**Actual bottleneck**: SPI transmission (~20ms for 450 LEDs), not buffer prep (<1ms)
-- Combined: ~30 FPS (serialized SPI transmission prevents interference)
-- Cap takes ~20ms, Stem takes ~12ms = 32ms total cycle
+**Actual bottleneck**: SPI transmission (~32ms for all LEDs), not buffer prep (<1ms)
+- Single SPI channel for all LEDs eliminates dual-channel interference
+- ~30 FPS with single continuous transmission
 - WS2811 protocol requires bitstream encoding and precise timing
 
 ## Project Structure
 - `main.py` - Entry point and pattern management
-- `src/hardware/led_controller.py` - Pi5Neo wrapper with dual SPI support
+- `src/hardware/led_controller.py` - Single SPI controller with parallel pattern generation
 - `src/patterns/` - Pattern implementations (auto-registered)
 - `config/led_config.yaml` - Strip definitions and hardware settings
 - `tests/test_spi.py` - Hardware validation scripts

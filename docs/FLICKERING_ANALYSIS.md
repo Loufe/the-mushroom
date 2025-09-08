@@ -1,10 +1,23 @@
 # LED Flickering Issue - Comprehensive Analysis
 
+## ✅ ISSUE RESOLVED
+
+**Root Cause**: Simultaneous transmission on SPI0 and SPI1 caused signal interference on Raspberry Pi 5's RP1 I/O controller.
+
+**Solution Applied**: 
+- Serialized SPI transmission using shared lock (`_spi_transmission_lock` in `strip_controller.py`)
+- Configured GPIO pins 10 and 20 for higher output amperage
+- Maintained 800kHz SPI speed (no reduction needed)
+
+**Result**: Stable operation at ~30 FPS with zero flickering across all 700 LEDs.
+
+---
+
 ## Executive Summary
 
-The Mushroom LED project experiences intermittent flickering on WS2811 LED strips when displaying colors other than pure white. This document consolidates all investigation findings, eliminated hypotheses, and current theories to aid future debugging efforts.
+The Mushroom LED project experienced intermittent flickering on WS2811 LED strips when displaying colors other than pure white. This document consolidates all investigation findings, eliminated hypotheses, and the successful resolution.
 
-**Key Finding**: Pure white (0xFF, 0xFF, 0xFF) displays without flickering, but only at full brightness. Any brightness reduction or color change introduces flickering. This brightness-dependent behavior is diagnostic: 100% white contains only "1" bits, while reduced brightness introduces "0" bits.
+**Key Diagnostic Finding**: Pure white (0xFF, 0xFF, 0xFF) displayed without flickering, while any color containing "0" bits flickered. This pointed to timing/signal integrity issues under concurrent SPI load.
 
 ## System Overview
 

@@ -1,27 +1,20 @@
 # LED Strip Configuration
 # Raspberry Pi 5 with Pi5Neo library
-# Physical layout: 700 LEDs across 2 SPI channels
+# Physical layout: 700 LEDs on single SPI chain (cap first, stem second)
 
 strips:
-  - id: stem_interior
-    spi_device: "/dev/spidev1.0"  # SPI1 - GPIO 20 (Pin 38)
-    led_count: 250
-    led_start: 0
-    led_end: 249
-    location: "mushroom_stem"
-    description: "Interior stem lighting for seated viewers"
-    
   - id: cap_exterior
-    spi_device: "/dev/spidev0.0"  # SPI0 - GPIO 10 (Pin 19)
     led_count: 450
-    led_start: 250
-    led_end: 699
-    location: "mushroom_cap"
-    description: "Exterior cap illumination visible from outside"
+    description: "Exterior cap illumination (wired first in chain)"
+    
+  - id: stem_interior
+    led_count: 250
+    description: "Interior stem lighting (wired second in chain)"
 
 # Hardware settings for Pi5Neo
 hardware:
-  spi_speed_khz: 640     # Reduced from 800 to fix "0" bit timing (390ns instead of 312ns)
+  spi_device: "/dev/spidev0.0"  # GPIO 10 (Pin 19) - Single SPI chain
+  spi_speed_khz: 800     # WS2811 data rate (library multiplies by 8 for SPI clock)
   brightness: 128        # Global brightness (0-255)
   strip_type: "WS2811"   # LED type
   color_order: "RGB"     # Color order (RGB, GRB, etc.)
