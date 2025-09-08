@@ -25,51 +25,31 @@ def main():
         print(f"Error reading metrics: {e}")
         sys.exit(1)
     
+    # Validate required fields exist
+    if 'timestamp' not in data:
+        print("Metrics not ready yet - waiting for first update")
+        sys.exit(0)
+    
     # Calculate age of data
-    age = int(time.time() - data.get('timestamp', 0))
+    age = int(time.time() - data['timestamp'])
     
     print('=== Performance Metrics ===')
     print(f'Data age: {age} seconds ago\n')
     
-    # Define metrics with descriptions
-    metrics_info = [
-        ('color_calc', 'Color Calc', 'Calculating pixel colors'),
-        ('pattern_wait', 'Pattern Wait', 'Pattern thread waiting for buffer'),
-        ('buffer_prep', 'Buffer Prep', 'Filling Pi5Neo buffer pixel-by-pixel'),
-        ('spi_transmit', 'SPI Transmit', 'Hardware transmission to LEDs'),
-        ('spi_wait', 'SPI Wait', 'SPI thread waiting for new frame')
-    ]
-    
-    for strip in ['cap', 'stem']:
-        strip_data = data.get(strip, {})
-        pattern = data.get('patterns', {}).get(strip) or 'None'
-        led_count = 450 if strip == 'cap' else 250
-        
-        print(f'{strip.upper()} ({led_count} LEDs, {pattern} pattern)')
-        
-        # Show each metric with description
-        for metric_name, display_name, description in metrics_info:
-            if metric_name in strip_data:
-                m = strip_data[metric_name]
-                
-                # Show metric with safe defaults
-                avg = m.get('avg', 0.0)
-                min_val = m.get('min', 0.0)
-                max_val = m.get('max', 0.0)
-                last = m.get('last', 0.0)
-                samples = m.get('samples', 0)
-                
-                print(f'  {display_name:12}: {avg:6.2f}ms avg ({min_val:.1f}-{max_val:.1f} range) '
-                      f'last: {last:.1f}ms')
-                print(f'                 {description} [{samples} samples]')
-        
-        # Calculate and show totals for context
-        if 'color_calc' in strip_data and 'buffer_prep' in strip_data and 'spi_transmit' in strip_data:
-            pattern_time = strip_data['color_calc']['avg']
-            spi_time = strip_data['buffer_prep']['avg'] + strip_data['spi_transmit']['avg']
-            print(f'\n  Pattern thread: {pattern_time:.1f}ms | SPI thread: {spi_time:.1f}ms')
-        
+    # Display patterns if available
+    if 'patterns' in data:
+        for strip in ['cap', 'stem']:
+            pattern = data['patterns'].get(strip, 'Not set')
+            led_count = 450 if strip == 'cap' else 250
+            print(f'{strip.upper()} ({led_count} LEDs, {pattern} pattern)')
         print()
+    
+    # Display FPS if available  
+    if 'fps' in data and 'frames_sent' in data:
+        print(f'FPS: {data["fps"]:.1f}')
+        print(f'Frames sent: {data["frames_sent"]}')
+    else:
+        print('Performance data not yet available')
 
 if __name__ == '__main__':
     main()
