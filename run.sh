@@ -247,15 +247,19 @@ cmd_test() {
         echo ""
     fi
     
-    echo "Running hardware test..."
-    echo "========================"
+    echo "Running hardware test pattern..."
+    echo "================================"
+    echo "This will cycle through RED, GREEN, BLUE every 3 seconds"
+    echo "Press Ctrl+C to stop"
+    echo ""
     
     if [[ $EUID -ne 0 ]]; then
         echo "Test requires root access. Elevating to sudo..."
         exec sudo "$0" test
     fi
     
-    "$PYTHON" tests/test_spi.py
+    # Run main.py with test pattern
+    "$PYTHON" "$SCRIPT_DIR/main.py" --pattern test --brightness 128
 }
 
 # List available patterns

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test Pattern - Simple RGB cycle for testing LED functionality
+Test Pattern - Comprehensive hardware test sequence
 """
 
 import numpy as np
@@ -11,20 +11,55 @@ from .registry import PatternRegistry
 
 @PatternRegistry.register("test")
 class TestPattern(Pattern):
-    """Simple test pattern - all LEDs cycle through red, green, blue"""
+    """Hardware test pattern - RGB colors then white at 5 brightness levels"""
     
     def get_default_params(self) -> Dict[str, Any]:
         return {
-            'cycle_time': 3.0  # Seconds per complete cycle
+            'step_duration': 3.0  # Seconds per test step
         }
     
     def update(self, delta_time: float) -> np.ndarray:
-        # Calculate which color to show (0=red, 1=green, 2=blue)
-        phase = (self.get_time() / self.params['cycle_time']) % 3
-        color_index = int(phase)
+        step_time = self.params['step_duration']
+        elapsed = self.get_time()
         
-        # Set all LEDs to the same color with brightness applied
-        self.pixels.fill(0)
-        self.pixels[:, color_index] = int(255 * self.brightness)
+        # Test sequence:
+        # 0-3s: Red
+        # 3-6s: Green  
+        # 6-9s: Blue
+        # 9-12s: White 20% (51/255)
+        # 12-15s: White 40% (102/255)
+        # 15-18s: White 60% (153/255)
+        # 18-21s: White 80% (204/255)
+        # 21-24s: White 100% (255/255)
+        # Then repeat
+        
+        total_cycle = 8 * step_time
+        phase = elapsed % total_cycle
+        step = int(phase / step_time)
+        
+        # Apply brightness to all colors
+        if step == 0:  # Red
+            self.pixels[:] = [255 * self.brightness, 0, 0]
+        elif step == 1:  # Green
+            self.pixels[:] = [0, 255 * self.brightness, 0]
+        elif step == 2:  # Blue
+            self.pixels[:] = [0, 0, 255 * self.brightness]
+        elif step == 3:  # White 20%
+            level = int(51 * self.brightness)
+            self.pixels[:] = [level, level, level]
+        elif step == 4:  # White 40%
+            level = int(102 * self.brightness)
+            self.pixels[:] = [level, level, level]
+        elif step == 5:  # White 60%
+            level = int(153 * self.brightness)
+            self.pixels[:] = [level, level, level]
+        elif step == 6:  # White 80%
+            level = int(204 * self.brightness)
+            self.pixels[:] = [level, level, level]
+        elif step == 7:  # White 100%
+            level = int(255 * self.brightness)
+            self.pixels[:] = [level, level, level]
+        else:
+            raise RuntimeError(f"Test pattern logic error: invalid step {step}")
         
         return self.pixels

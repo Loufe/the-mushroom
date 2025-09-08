@@ -34,6 +34,7 @@ sudo systemctl restart mushroom-lights
 - DO NOT create new files unless essential
 - DO NOT add comments unless requested
 - PREFER editing existing patterns over creating new files
+- ALWAYS fail fast - no soft failures, raise errors immediately
 
 ## Performance Reality (Measured)
 **Actual bottleneck**: SPI transmission (~32ms for all LEDs), not buffer prep (<1ms)
