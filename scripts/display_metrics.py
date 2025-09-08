@@ -37,11 +37,12 @@ def main():
     print(f'Data age: {age} seconds ago\n')
     
     # Display patterns if available
-    if 'patterns' in data:
+    if 'patterns' in data and 'led_counts' in data:
         for strip in ['cap', 'stem']:
-            pattern = data['patterns'].get(strip, 'Not set')
-            led_count = 450 if strip == 'cap' else 250
-            print(f'{strip.upper()} ({led_count} LEDs, {pattern} pattern)')
+            if strip in data['patterns'] and strip in data['led_counts']:
+                pattern = data['patterns'][strip]
+                led_count = data['led_counts'][strip]
+                print(f'{strip.upper()} ({led_count} LEDs, {pattern} pattern)')
         print()
     
     # Display FPS if available  

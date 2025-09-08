@@ -166,6 +166,10 @@ class MushroomLights:
                             'timestamp': current_time,
                             'fps': self.controller.current_fps,
                             'frames_sent': self.controller.frames_sent,
+                            'led_counts': {
+                                'cap': self.controller.cap_led_count,
+                                'stem': self.controller.stem_led_count
+                            },
                             'patterns': {
                                 'cap': cap_pattern_name,
                                 'stem': stem_pattern_name
@@ -173,7 +177,9 @@ class MushroomLights:
                             'timing_ms': {
                                 'pattern_wait': self.controller.last_pattern_wait_ms,
                                 'buffer_prep': self.controller.last_buffer_prep_ms,
-                                'spi_transmit': self.controller.last_spi_transmit_ms
+                                'spi_transmit': self.controller.last_spi_transmit_ms,
+                                'cap_generation': self.controller.last_cap_generation_ms,
+                                'stem_generation': self.controller.last_stem_generation_ms
                             }
                         }
                         with open('/tmp/mushroom-metrics.json', 'w') as f:

@@ -91,6 +91,10 @@ class LEDController:
         # Frame synchronization
         self.cap_ready = threading.Event()
         self.stem_ready = threading.Event()
+        self.cap_consumed = threading.Event()
+        self.stem_consumed = threading.Event()
+        self.cap_consumed.set()
+        self.stem_consumed.set()
         
         # Performance tracking
         self.frames_sent = 0
@@ -101,6 +105,8 @@ class LEDController:
         self.last_pattern_wait_ms = 0
         self.last_buffer_prep_ms = 0
         self.last_spi_transmit_ms = 0
+        self.last_cap_generation_ms = 0
+        self.last_stem_generation_ms = 0
         
         logger.info(f"LED Controller initialized: {self.cap_led_count} cap + {self.stem_led_count} stem = {self.total_leds} total")
     
@@ -158,8 +164,8 @@ class LEDController:
         self.running = False
         
         # Signal threads to wake up
-        self.cap_ready.set()
-        self.stem_ready.set()
+        self.cap_consumed.set()
+        self.stem_consumed.set()
         
         # Wait for threads to finish
         if self.cap_thread and self.cap_thread.is_alive():
@@ -254,18 +260,19 @@ class LEDController:
         
         while self.running:
             try:
-                # Generate pattern
-                pixels = self.cap_pattern.render()
+                self.cap_consumed.wait(timeout=0.1)
+                if not self.running:
+                    break
+                self.cap_consumed.clear()
                 
-                # Store in buffer
+                gen_start = time.time()
+                pixels = self.cap_pattern.render()
+                self.last_cap_generation_ms = (time.time() - gen_start) * 1000
+                
                 with self.cap_buffer_lock:
                     self.cap_buffer[:] = pixels
                 
-                # Signal ready
                 self.cap_ready.set()
-                
-                # Wait a bit before generating next frame
-                time.sleep(0.01)  # ~100 FPS generation rate
                 
             except Exception as e:
                 logger.error(f"Cap pattern error: {e}")
@@ -279,18 +286,19 @@ class LEDController:
         
         while self.running:
             try:
-                # Generate pattern
-                pixels = self.stem_pattern.render()
+                self.stem_consumed.wait(timeout=0.1)
+                if not self.running:
+                    break
+                self.stem_consumed.clear()
                 
-                # Store in buffer
+                gen_start = time.time()
+                pixels = self.stem_pattern.render()
+                self.last_stem_generation_ms = (time.time() - gen_start) * 1000
+                
                 with self.stem_buffer_lock:
                     self.stem_buffer[:] = pixels
                 
-                # Signal ready
                 self.stem_ready.set()
-                
-                # Wait a bit before generating next frame
-                time.sleep(0.01)  # ~100 FPS generation rate
                 
             except Exception as e:
                 logger.error(f"Stem pattern error: {e}")
@@ -304,7 +312,6 @@ class LEDController:
         
         while self.running:
             try:
-                # Wait for both patterns to be ready
                 wait_start = time.time()
                 self.cap_ready.wait(timeout=0.1)
                 self.stem_ready.wait(timeout=0.1)
@@ -313,18 +320,18 @@ class LEDController:
                 if not self.running:
                     break
                 
-                # Clear ready flags
                 self.cap_ready.clear()
                 self.stem_ready.clear()
                 
-                # Get buffers
                 copy_start = time.time()
                 with self.cap_buffer_lock:
                     cap_pixels = self.cap_buffer.copy()
                 with self.stem_buffer_lock:
                     stem_pixels = self.stem_buffer.copy()
                 
-                # Load into Pi5Neo
+                self.cap_consumed.set()
+                self.stem_consumed.set()
+                
                 for i in range(self.cap_led_count):
                     r, g, b = cap_pixels[i]
                     self.spi.set_led_color(i, r, g, b)
@@ -334,12 +341,10 @@ class LEDController:
                     self.spi.set_led_color(self.cap_led_count + i, r, g, b)
                 self.last_buffer_prep_ms = (time.time() - copy_start) * 1000
                 
-                # Transmit
                 spi_start = time.time()
                 self.spi.update_strip()
                 self.last_spi_transmit_ms = (time.time() - spi_start) * 1000
                 
-                # Update FPS
                 self.frames_sent += 1
                 current_time = time.time()
                 if current_time - self.last_fps_time >= 1.0:

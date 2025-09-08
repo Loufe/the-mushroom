@@ -32,9 +32,12 @@ sudo systemctl restart mushroom-lights
 
 ## Code Guidelines
 - DO NOT create new files unless essential
-- DO NOT add comments unless requested
+- DO NOT add comments unless requested - this includes obvious comments like "# Get buffers" or "# Wait for patterns"
 - PREFER editing existing patterns over creating new files
 - ALWAYS fail fast - no soft failures, raise errors immediately
+  - Use RuntimeError for logic errors, ValueError for bad inputs
+  - Never use .get() with defaults - check existence and fail if missing
+  - No "shouldn't happen" code paths - always raise if unexpected state
 
 ## Performance Reality (Measured)
 **Actual bottleneck**: SPI transmission (~32ms for all LEDs), not buffer prep (<1ms)
