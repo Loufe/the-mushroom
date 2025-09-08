@@ -21,7 +21,7 @@ strips:
 
 # Hardware settings for Pi5Neo
 hardware:
-  spi_speed_khz: 800     # WS2811 data rate (library multiplies by 8 for SPI clock)
+  spi_speed_khz: 640     # Reduced from 800 to fix "0" bit timing (390ns instead of 312ns)
   brightness: 128        # Global brightness (0-255)
   strip_type: "WS2811"   # LED type
   color_order: "RGB"     # Color order (RGB, GRB, etc.)
