@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 class StripController:
     """Controls a single LED strip with dedicated pattern and SPI threads"""
     
+    # Shared lock to prevent simultaneous SPI transmission (fixes dual-SPI interference)
+    _spi_transmission_lock = threading.Lock()
+    
     def __init__(self, name: str, strip_config: dict, hardware_config: dict, timing_config: dict):
         """
         Initialize strip controller
@@ -294,9 +297,11 @@ class StripController:
                 pixel_time_ms = (time.perf_counter() - pixel_start) * 1000
                 self._record_metric('buffer_prep', pixel_time_ms)
                 
-                spi_start = time.perf_counter()
-                self.spi.update_strip(sleep_duration=self.WS2811_LATCH_DELAY)
-                spi_time_ms = (time.perf_counter() - spi_start) * 1000
+                # Acquire shared lock to prevent simultaneous SPI transmission
+                with StripController._spi_transmission_lock:
+                    spi_start = time.perf_counter()
+                    self.spi.update_strip(sleep_duration=self.WS2811_LATCH_DELAY)
+                    spi_time_ms = (time.perf_counter() - spi_start) * 1000
                 self._record_metric('spi_transmit', spi_time_ms)
                 
                 # Update stats
@@ -330,7 +335,9 @@ class StripController:
         """Clear all LEDs on this strip"""
         try:
             self.spi.clear_strip()
-            self.spi.update_strip(sleep_duration=self.WS2811_LATCH_DELAY)
+            # Acquire lock to prevent interference even during cleanup
+            with StripController._spi_transmission_lock:
+                self.spi.update_strip(sleep_duration=self.WS2811_LATCH_DELAY)
         except Exception as e:
             self.logger.error(f"Failed to clear {self.name} LEDs: {e}")
     

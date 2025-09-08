@@ -142,9 +142,11 @@ class MushroomLights:
                 # Log performance periodically
                 if current_time - last_health_log >= HEALTH_LOG_INTERVAL:
                     stats = self.controller.get_stats()
+                    # With serialized SPI, both strips run at same effective rate
+                    effective_fps = min(stats['cap_fps'], stats['stem_fps']) if stats['cap_fps'] > 0 and stats['stem_fps'] > 0 else max(stats['cap_fps'], stats['stem_fps'])
                     logger.info(
-                        f"Performance | Cap: {stats['cap_fps']:.1f} FPS ({stats['cap_frames']} frames) | "
-                        f"Stem: {stats['stem_fps']:.1f} FPS ({stats['stem_frames']} frames) | "
+                        f"Performance | FPS: {effective_fps:.1f} | "
+                        f"Frames: {stats['cap_frames'] + stats['stem_frames']} | "
                         f"Errors: {stats['cap_errors'] + stats['stem_errors']}"
                     )
                     

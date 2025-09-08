@@ -37,8 +37,8 @@ sudo systemctl restart mushroom-lights
 
 ## Performance Reality (Measured)
 **Actual bottleneck**: SPI transmission (~20ms for 450 LEDs), not buffer prep (<1ms)
-- Cap: ~48 FPS limited by hardware protocol timing
-- Stem: ~98 FPS (half the LEDs = half the time)
+- Combined: ~30 FPS (serialized SPI transmission prevents interference)
+- Cap takes ~20ms, Stem takes ~12ms = 32ms total cycle
 - WS2811 protocol requires bitstream encoding and precise timing
 
 ## Project Structure
