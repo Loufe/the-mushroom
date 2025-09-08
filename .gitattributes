@@ -1,0 +1,39 @@
+# Force LF line endings for all text files (Linux target)
+* text=auto eol=lf
+
+# Python files always LF
+*.py text eol=lf
+*.pyx text eol=lf
+*.pyd binary
+
+# Shell scripts always LF
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Config files always LF
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.ini text eol=lf
+*.cfg text eol=lf
+
+# Documentation
+*.md text eol=lf
+*.txt text eol=lf
+*.rst text eol=lf
+
+# Git files
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.gz binary
+*.zip binary
+*.7z binary
+*.tar binary
