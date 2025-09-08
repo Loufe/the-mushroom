@@ -50,6 +50,22 @@ def main():
         print(f'Frames sent: {data["frames_sent"]}')
     else:
         print('Performance data not yet available')
+    
+    # Display timing breakdown if available
+    if 'timing_ms' in data:
+        print()
+        print('Timing breakdown (last frame):')
+        timing = data['timing_ms']
+        if 'pattern_wait' in timing:
+            print(f'  Pattern wait: {timing["pattern_wait"]:.1f}ms')
+        if 'buffer_prep' in timing:
+            print(f'  Buffer prep:  {timing["buffer_prep"]:.1f}ms')
+        if 'spi_transmit' in timing:
+            print(f'  SPI transmit: {timing["spi_transmit"]:.1f}ms')
+        
+        if 'buffer_prep' in timing and 'spi_transmit' in timing:
+            total_ms = timing['buffer_prep'] + timing['spi_transmit']
+            print(f'  Total frame:  {total_ms:.1f}ms')
 
 if __name__ == '__main__':
     main()

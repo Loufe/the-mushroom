@@ -169,6 +169,11 @@ class MushroomLights:
                             'patterns': {
                                 'cap': cap_pattern_name,
                                 'stem': stem_pattern_name
+                            },
+                            'timing_ms': {
+                                'pattern_wait': self.controller.last_pattern_wait_ms,
+                                'buffer_prep': self.controller.last_buffer_prep_ms,
+                                'spi_transmit': self.controller.last_spi_transmit_ms
                             }
                         }
                         with open('/tmp/mushroom-metrics.json', 'w') as f:
