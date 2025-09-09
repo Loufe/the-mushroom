@@ -57,13 +57,11 @@ show_status() {
         echo -e "${YELLOW}○${NC} Virtual environment not created"
     fi
     
-    # Check Teensy USB device
-    if [ -e "$TEENSY_DEVICE" ]; then
-        echo -e "${GREEN}✓${NC} Teensy detected at $TEENSY_DEVICE"
-    elif ls /dev/ttyACM* 2>/dev/null | grep -q .; then
-        echo -e "${YELLOW}○${NC} USB serial device found but not at expected location"
+    # Check for USB serial devices (Teensy will appear here)
+    if ls /dev/ttyACM* 2>/dev/null | grep -q .; then
+        echo -e "${GREEN}✓${NC} USB serial device(s) found"
     else
-        echo -e "${RED}✗${NC} Teensy not detected"
+        echo -e "${YELLOW}○${NC} No USB serial devices detected"
     fi
     
     

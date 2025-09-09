@@ -24,26 +24,37 @@ void setup() {
 }
 
 void loop() {
-  // Wait for header
-  if (Serial.read() == '<' && Serial.read() == '>') {
-    // Read all pixel data at once
-    Serial.readBytes(megaBuffer, MAX_PIXELS_PER_STRIP * 8 * 3);
-    
-    // Simple method - we'll optimize later if this works
-    int curItem = 0;
-    while (curItem < (MAX_PIXELS_PER_STRIP * 8)) {
-      leds.setPixel(curItem, 
-                    megaBuffer[curItem * 3], 
-                    megaBuffer[curItem * 3 + 1], 
-                    megaBuffer[curItem * 3 + 2]);
-      curItem++;
+  // Look for start byte
+  if (Serial.available() > 0) {
+    if (Serial.read() == '<') {
+      // Check for second header byte
+      if (Serial.read() == '>') {
+        // Got header, read the frame
+        int bytesRead = Serial.readBytes(megaBuffer, MAX_PIXELS_PER_STRIP * 8 * 3);
+        
+        // Diagnostic: Very brief flash to not interfere with next frame
+        // 240 bytes = LED stays ON
+        // Less = LED turns OFF
+        if (bytesRead == 240) {
+          // Success - keep LED on
+          digitalWrite(LED_BUILTIN, HIGH);
+        } else {
+          // Partial read - turn LED off
+          digitalWrite(LED_BUILTIN, LOW);
+        }
+        
+        // Simple method - we'll optimize later if this works
+        int curItem = 0;
+        while (curItem < (MAX_PIXELS_PER_STRIP * 8)) {
+          leds.setPixel(curItem, 
+                        megaBuffer[curItem * 3], 
+                        megaBuffer[curItem * 3 + 1], 
+                        megaBuffer[curItem * 3 + 2]);
+          curItem++;
+        }
+        
+        leds.show();
+      }
     }
-    
-    leds.show();
-    
-    // Quick blink to show frame received
-    digitalWrite(LED_BUILTIN, LOW);
-    delayMicroseconds(100);
-    digitalWrite(LED_BUILTIN, HIGH);
   }
 }

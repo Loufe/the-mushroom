@@ -11,22 +11,20 @@ strips:
     led_count: 25
     description: "Interior stem lighting (wired second in chain)"
 
-# Hardware settings for Pi5Neo
+# Hardware settings for Teensy + OctoWS2811
 hardware:
-  spi_device: "/dev/spidev0.0"  # GPIO 10 (Pin 19) - Single SPI chain
-  spi_speed_khz: 800     # WS2811 data rate (library multiplies by 8 for SPI clock)
+  serial_port: "/dev/ttyACM0"  # USB serial port
+  baudrate: 115200       # Serial communication speed
   brightness: 128        # Global brightness (0-255)
-  strip_type: "WS2811"   # LED type
-  color_order: "RGB"     # Color order (RGB, GRB, etc.)
+  strip_type: "WS2811_RGB"   # LED type with color order
 
 # Performance settings  
 performance:
   target_fps: 30  # Minimum acceptable FPS
   max_fps: 60     # Target FPS for smooth animations
 
-# Timing parameters (critical for protocol and thread coordination)
+# Timing parameters
 timing:
-  ws2811_latch_delay_ms: 0.24     # Reset period in milliseconds (min 0.05 for WS2811)
   thread_timeout_ms: 100          # Thread coordination timeout in milliseconds
   max_consecutive_errors: 3       # Errors before thread shutdown
   metrics_window_seconds: 300     # Performance metric rolling window (5 minutes)

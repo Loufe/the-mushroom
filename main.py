@@ -22,7 +22,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from hardware.led_controller import LEDController
+# TODO: Replace with TeensyLEDController once implemented
+# from hardware.led_controller_teensy import LEDController
+raise NotImplementedError("LED Controller needs to be replaced with Teensy version")
 from patterns import PatternRegistry
 
 # Constants
