@@ -23,7 +23,7 @@ def main():
     try:
         hue = 0.0
         while True:
-            rgb = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
+            rgb = colorsys.hsv_to_rgb(hue, 1.0, 0.5)
             r = int(rgb[0] * 255)
             g = int(rgb[1] * 255)
             b = int(rgb[2] * 255)
