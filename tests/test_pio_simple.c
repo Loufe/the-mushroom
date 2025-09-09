@@ -219,9 +219,9 @@ int main(int argc, const char **argv) {
         }
         
     } else if (mode == 4) {
-        // Mode 4: Test different color orders
-        printf("Mode 4: Color order test - sending pure RED (255,0,0)\n");
-        printf("Watch which actual color appears\n\n");
+        // Mode 4: Test what happens with different bit positions
+        printf("Mode 4: Testing bit positions and accumulation\n");
+        printf("Watch what happens with different shift amounts\n\n");
         
         while (running) {
             // Test RGB order (should show RED for WS2811)
