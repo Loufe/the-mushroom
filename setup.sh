@@ -25,8 +25,6 @@ PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV_NAME="mushroom-env"
 VENV_PATH="${PROJECT_DIR}/${VENV_NAME}"
 MIN_PYTHON_VERSION="3.9"
-# Teensy USB vendor ID (PJRC)
-TEENSY_VID="16c0"
 
 echo -e "${GREEN}================================================${NC}"
 echo -e "${GREEN}     🍄 Mushroom LED Project Setup Script      ${NC}"
@@ -74,12 +72,12 @@ show_status() {
         echo -e "${YELLOW}○${NC} Autostart not configured"
     fi
     
-    # Check if we can import pi5neo (if venv exists)
+    # Check if we can import pyserial (if venv exists)
     if [ -d "$VENV_PATH" ]; then
-        if "$VENV_PATH/bin/python" -c "import pi5neo" 2>/dev/null; then
-            echo -e "${GREEN}✓${NC} LED control library installed"
+        if "$VENV_PATH/bin/python" -c "import serial" 2>/dev/null; then
+            echo -e "${GREEN}✓${NC} PySerial library installed"
         else
-            echo -e "${RED}✗${NC} LED control library not installed"
+            echo -e "${RED}✗${NC} PySerial library not installed"
         fi
     fi
     
@@ -167,155 +165,6 @@ check_python() {
     fi
 }
 
-# Function to check and enable SPI
-check_spi() {
-    echo -e "\n${BLUE}Checking SPI configuration...${NC}"
-    
-    local spi_issues=0
-    
-    # Check if SPI kernel module is loaded
-    if ! lsmod | grep -q spi_bcm2835; then
-        echo -e "${YELLOW}⚠ SPI kernel module not loaded${NC}"
-        spi_issues=1
-    fi
-    
-    # Check for SPI devices
-    for device in "${REQUIRED_SPI_DEVICES[@]}"; do
-        if [ ! -e "$device" ]; then
-            echo -e "${YELLOW}⚠ Missing: $device${NC}"
-            spi_issues=1
-        else
-            echo -e "${GREEN}✓ Found: $device${NC}"
-        fi
-    done
-    
-    # Only check config if devices are missing
-    if [ $spi_issues -eq 1 ]; then
-        # Check boot config for SPI1 overlay
-        CONFIG_CHECKED=false
-        if [ -f /boot/config.txt ]; then
-            CONFIG_CHECKED=true
-            if ! grep -q "dtoverlay=spi1" /boot/config.txt; then
-                echo -e "${YELLOW}⚠ SPI1 overlay not found in /boot/config.txt${NC}"
-            fi
-        elif [ -f /boot/firmware/config.txt ]; then
-            CONFIG_CHECKED=true
-            if ! grep -q "dtoverlay=spi1" /boot/firmware/config.txt; then
-                echo -e "${YELLOW}⚠ SPI1 overlay not found in /boot/firmware/config.txt${NC}"
-            fi
-        fi
-        
-        if [ "$CONFIG_CHECKED" = false ]; then
-            echo -e "${YELLOW}⚠ Could not locate boot config file${NC}"
-        fi
-    fi
-    
-    if [ $spi_issues -eq 1 ]; then
-        echo -e "\n${YELLOW}SPI configuration needs attention!${NC}"
-        echo "To fix:"
-        echo "1. Enable SPI in dietpi-config:"
-        echo "   sudo dietpi-config"
-        echo "   Navigate to: Advanced Options > SPI > Enable"
-        echo ""
-        echo "2. Add SPI1 overlay to boot config:"
-        echo "   sudo nano /boot/config.txt"
-        echo "   Add line: dtoverlay=spi1-1cs"
-        echo ""
-        echo "3. Reboot: sudo reboot"
-        echo ""
-        read -p "Continue without proper SPI setup? (y/n): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            exit 1
-        fi
-    else
-        echo -e "${GREEN}✓ SPI properly configured${NC}"
-    fi
-}
-
-# Function to configure GPIO drive strength for better signal integrity
-config_gpio_drive() {
-    echo -e "\n${BLUE}Configuring GPIO drive strength for SPI signals...${NC}"
-    
-    # Determine config file location
-    CONFIG_FILE=""
-    if [ -f /boot/config.txt ]; then
-        CONFIG_FILE="/boot/config.txt"
-    elif [ -f /boot/firmware/config.txt ]; then
-        CONFIG_FILE="/boot/firmware/config.txt"
-    else
-        echo -e "${YELLOW}⚠ Could not locate boot config file${NC}"
-        echo "GPIO drive strength configuration skipped"
-        return
-    fi
-    
-    # Check both GPIO pins used for SPI
-    # GPIO 10 (Pin 19) - SPI0 MOSI for cap (450 LEDs)
-    # GPIO 20 (Pin 38) - SPI1 MOSI for stem (250 LEDs)
-    
-    local NEEDS_UPDATE=false
-    local GPIO10_OK=false
-    local GPIO20_OK=false
-    
-    # Check GPIO 10
-    if grep -q "^gpio=10=.*dh" "$CONFIG_FILE"; then
-        echo -e "${GREEN}✓ GPIO 10 (SPI0/Cap) high drive strength already enabled${NC}"
-        GPIO10_OK=true
-    elif grep -q "^gpio=10=" "$CONFIG_FILE"; then
-        echo -e "${YELLOW}⚠ GPIO 10 configured but not set to high drive${NC}"
-        NEEDS_UPDATE=true
-    else
-        echo -e "${YELLOW}⚠ GPIO 10 (SPI0/Cap) drive strength not configured${NC}"
-        NEEDS_UPDATE=true
-    fi
-    
-    # Check GPIO 20
-    if grep -q "^gpio=20=.*dh" "$CONFIG_FILE"; then
-        echo -e "${GREEN}✓ GPIO 20 (SPI1/Stem) high drive strength already enabled${NC}"
-        GPIO20_OK=true
-    elif grep -q "^gpio=20=" "$CONFIG_FILE"; then
-        echo -e "${YELLOW}⚠ GPIO 20 configured but not set to high drive${NC}"
-        NEEDS_UPDATE=true
-    else
-        echo -e "${YELLOW}⚠ GPIO 20 (SPI1/Stem) drive strength not configured${NC}"
-        NEEDS_UPDATE=true
-    fi
-    
-    # If both are OK, we're done
-    if [ "$GPIO10_OK" = true ] && [ "$GPIO20_OK" = true ]; then
-        echo -e "${GREEN}✓ Both SPI GPIO pins configured correctly${NC}"
-        return
-    fi
-    
-    # Otherwise offer to configure
-    if [ "$NEEDS_UPDATE" = true ]; then
-        echo -e "\n${YELLOW}High drive strength improves signal integrity through the 74AHCT125 level shifter${NC}"
-        echo "This helps prevent flickering and data corruption at high speeds"
-        read -p "Configure GPIO pins for high drive strength (16mA)? (y/n): " -n 1 -r
-        echo
-        
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            # Backup config file
-            sudo cp "$CONFIG_FILE" "${CONFIG_FILE}.bak"
-            
-            # Remove any existing GPIO 10/20 configs
-            sudo sed -i '/^gpio=10=/d' "$CONFIG_FILE"
-            sudo sed -i '/^gpio=20=/d' "$CONFIG_FILE"
-            
-            # Add GPIO configuration
-            echo "" | sudo tee -a "$CONFIG_FILE" > /dev/null
-            echo "# Mushroom LED - High drive strength for SPI signals through 74AHCT125" | sudo tee -a "$CONFIG_FILE" > /dev/null
-            echo "gpio=10=op,dh  # SPI0 MOSI (Pin 19) for cap exterior" | sudo tee -a "$CONFIG_FILE" > /dev/null
-            echo "gpio=20=op,dh  # SPI1 MOSI (Pin 38) for stem interior" | sudo tee -a "$CONFIG_FILE" > /dev/null
-            
-            echo -e "${GREEN}✓ GPIO 10 and 20 configured for high drive strength${NC}"
-            echo -e "${YELLOW}⚠ Reboot required for changes to take effect${NC}"
-        else
-            echo -e "${YELLOW}Skipping GPIO configuration${NC}"
-            echo "Note: You may experience flickering without increased drive strength"
-        fi
-    fi
-}
 
 # Function to check system dependencies
 check_system_deps() {
@@ -513,8 +362,6 @@ main() {
     # Run all checks
     check_raspberry_pi
     check_python
-    check_spi
-    config_gpio_drive
     check_system_deps
     
     # Setup environment

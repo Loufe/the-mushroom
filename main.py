@@ -23,8 +23,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # TODO: Replace with TeensyLEDController once implemented
-# from hardware.led_controller_teensy import LEDController
-raise NotImplementedError("LED Controller needs to be replaced with Teensy version")
+try:
+    from hardware.led_controller_teensy import LEDController
+except ImportError:
+    logger.warning("Teensy LED controller not found, main.py will not work until implemented")
+    # Temporary placeholder to prevent immediate crash
+    LEDController = None
 from patterns import PatternRegistry
 
 # Constants

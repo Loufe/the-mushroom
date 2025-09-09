@@ -35,11 +35,25 @@ def test_teensy():
             # Just solid red for debugging - no color changes
             r, g, b = 255, 0, 0
             
-            # Create frame buffer - all LEDs same color for simplicity
+            # Create frame buffer - organized by strips
             frame = bytearray(b'<>')  # Header
             
-            for led in range(TOTAL_LEDS):
-                frame.extend([r, g, b])
+            # Teensy expects all pixels of strip 0, then all pixels of strip 1, etc.
+            # This matches the i * MAX_PIXELS_PER_STRIP * 3 offset in the Teensy code
+            for strip in range(NUM_STRIPS):
+                for pixel in range(LEDS_PER_STRIP):
+                    frame.extend([r, g, b])
+            
+            # Debug: Print frame analysis on first send
+            if frame_count == 0:
+                print(f"\nFrame size: {len(frame)} bytes")
+                print(f"Header: {frame[0]:02x} {frame[1]:02x} (should be 3c 3e for <>)")
+                print(f"\nFirst 50 bytes: {' '.join(f'{b:02x}' for b in frame[:50])}")
+                print(f"\nByte positions Teensy expects:")
+                print(f"  Bytes 2-4: Strip0_Pixel0 = {frame[2]:02x} {frame[3]:02x} {frame[4]:02x}")
+                print(f"  Bytes 32-34: Strip1_Pixel0 = {frame[32]:02x} {frame[33]:02x} {frame[34]:02x}")
+                print(f"  Bytes 62-64: Strip2_Pixel0 = {frame[62]:02x} {frame[63]:02x} {frame[64]:02x}")
+                print(f"  All should be ff 00 00 for red\n")
             
             # Send frame
             ser.write(frame)
@@ -58,9 +72,11 @@ def test_teensy():
     except KeyboardInterrupt:
         print("\n\nStopping...")
         
-        # Send black frame to clear
+        # Send black frame to clear (organized by strips)
         frame = bytearray(b'<>')
-        frame.extend([0, 0, 0] * TOTAL_LEDS)
+        for strip in range(NUM_STRIPS):
+            for pixel in range(LEDS_PER_STRIP):
+                frame.extend([0, 0, 0])
         ser.write(frame)
         
         # Stats
