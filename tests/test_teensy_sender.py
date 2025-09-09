@@ -14,17 +14,13 @@ def test_teensy():
     NUM_STRIPS = 8
     TOTAL_LEDS = LEDS_PER_STRIP * NUM_STRIPS
     
-    # Open serial - try 2Mbps first, fall back to 115200
+    # Start with 115200 for stability
     try:
-        ser = serial.Serial('/dev/ttyACM0', 2000000, timeout=1)
-        print(f"Connected at 2Mbps")
-    except:
-        try:
-            ser = serial.Serial('/dev/ttyACM0', 115200, timeout=1)
-            print(f"Connected at 115200")
-        except Exception as e:
-            print(f"Failed to connect: {e}")
-            return
+        ser = serial.Serial('/dev/ttyACM0', 115200, timeout=1)
+        print(f"Connected at 115200 baud")
+    except Exception as e:
+        print(f"Failed to connect: {e}")
+        return
     
     time.sleep(2)  # Let Teensy initialize
     
@@ -36,18 +32,8 @@ def test_teensy():
     
     try:
         while True:
-            # Create test pattern - cycle through colors
-            color_phase = (frame_count % 300) / 100  # 0-3 range
-            
-            if color_phase < 1:
-                # Red
-                r, g, b = 255, 0, 0
-            elif color_phase < 2:
-                # Green  
-                r, g, b = 0, 255, 0
-            else:
-                # Blue
-                r, g, b = 0, 0, 255
+            # Just solid red for debugging - no color changes
+            r, g, b = 255, 0, 0
             
             # Create frame buffer - all LEDs same color for simplicity
             frame = bytearray(b'<>')  # Header
@@ -66,8 +52,8 @@ def test_teensy():
                 fps = frame_count / elapsed
                 print(f"Frame {frame_count}: {fps:.1f} FPS - Color: RGB({r},{g},{b})")
             
-            # Target 30 FPS for testing
-            time.sleep(1/30)
+            # Slower frame rate for debugging - 10 FPS
+            time.sleep(1/10)
             
     except KeyboardInterrupt:
         print("\n\nStopping...")

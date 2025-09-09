@@ -14,7 +14,7 @@ OctoWS2811 leds(MAX_PIXELS_PER_STRIP, displayMemory, drawingMemory, WS2811_RGB |
 char megaBuffer[MAX_PIXELS_PER_STRIP * 8 * 3];  // 10 * 8 * 3 = 240 bytes
 
 void setup() {
-  Serial.begin(2000000);  // Start with 2Mbps, can lower to 115200 if issues
+  Serial.begin(115200);  // Match Python sender at 115200
   
   leds.begin();
   leds.show();
