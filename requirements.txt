@@ -1,9 +1,9 @@
 # Mushroom LED Sculpture Dependencies
 # Python 3.9+ required
-# Raspberry Pi 5 compatible
+# Raspberry Pi 5 + Teensy 4.0/4.1 with OctoWS2811
 
-# LED Control
-pi5neo  # Pi 5 specific LED library
+# Serial Communication (Pi to Teensy)
+pyserial  # For USB serial communication with Teensy
 
 # Color Processing
 opencv-python-headless  
@@ -15,6 +15,9 @@ scipy  # For advanced signal processing if needed
 
 # Configuration & Utilities
 pyyaml
+
+# System Monitoring (optional)
+psutil  # For performance monitoring
 
 # Development dependencies (optional)
 # pytest

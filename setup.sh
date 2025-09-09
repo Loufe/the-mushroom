@@ -25,7 +25,8 @@ PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV_NAME="mushroom-env"
 VENV_PATH="${PROJECT_DIR}/${VENV_NAME}"
 MIN_PYTHON_VERSION="3.9"
-REQUIRED_SPI_DEVICES=("/dev/spidev0.0" "/dev/spidev1.0")
+# Teensy USB vendor ID (PJRC)
+TEENSY_VID="16c0"
 
 echo -e "${GREEN}================================================${NC}"
 echo -e "${GREEN}     🍄 Mushroom LED Project Setup Script      ${NC}"
@@ -56,42 +57,15 @@ show_status() {
         echo -e "${YELLOW}○${NC} Virtual environment not created"
     fi
     
-    # Check SPI devices
-    if [ -e "/dev/spidev0.0" ] && [ -e "/dev/spidev1.0" ]; then
-        echo -e "${GREEN}✓${NC} Both SPI channels available"
-    elif [ -e "/dev/spidev0.0" ] || [ -e "/dev/spidev1.0" ]; then
-        echo -e "${YELLOW}○${NC} Partial SPI configuration"
+    # Check Teensy USB device
+    if [ -e "$TEENSY_DEVICE" ]; then
+        echo -e "${GREEN}✓${NC} Teensy detected at $TEENSY_DEVICE"
+    elif ls /dev/ttyACM* 2>/dev/null | grep -q .; then
+        echo -e "${YELLOW}○${NC} USB serial device found but not at expected location"
     else
-        echo -e "${RED}✗${NC} SPI not configured"
+        echo -e "${RED}✗${NC} Teensy not detected"
     fi
     
-    # Check GPIO drive strength for both SPI channels
-    CONFIG_FILE=""
-    if [ -f /boot/config.txt ]; then
-        CONFIG_FILE="/boot/config.txt"
-    elif [ -f /boot/firmware/config.txt ]; then
-        CONFIG_FILE="/boot/firmware/config.txt"
-    fi
-    
-    if [ -n "$CONFIG_FILE" ]; then
-        GPIO10_OK=false
-        GPIO20_OK=false
-        
-        if grep -q "^gpio=10=.*dh" "$CONFIG_FILE" 2>/dev/null; then
-            GPIO10_OK=true
-        fi
-        if grep -q "^gpio=20=.*dh" "$CONFIG_FILE" 2>/dev/null; then
-            GPIO20_OK=true
-        fi
-        
-        if [ "$GPIO10_OK" = true ] && [ "$GPIO20_OK" = true ]; then
-            echo -e "${GREEN}✓${NC} GPIO 10 & 20 high drive strength configured"
-        elif [ "$GPIO10_OK" = true ] || [ "$GPIO20_OK" = true ]; then
-            echo -e "${YELLOW}○${NC} Partial GPIO drive strength configured"
-        else
-            echo -e "${YELLOW}○${NC} GPIO drive strength not configured"
-        fi
-    fi
     
     # Check service
     if systemctl is-active --quiet mushroom-lights 2>/dev/null; then
@@ -422,15 +396,13 @@ install_dependencies() {
         # Verify critical packages
         echo -e "\n${BLUE}Verifying installations...${NC}"
         
-        # Check pi5neo (critical for LED control)
-        if python -c "import pi5neo" 2>/dev/null; then
-            echo -e "${GREEN}✓ pi5neo installed${NC}"
+        # Check pyserial (critical for Teensy communication)
+        if python -c "import serial" 2>/dev/null; then
+            echo -e "${GREEN}✓ pyserial installed${NC}"
         else
-            echo -e "${RED}✗ pi5neo installation failed${NC}"
-            echo -e "${YELLOW}This is critical for LED control. Possible fixes:${NC}"
-            echo "  1. Check build-essential is installed"
-            echo "  2. Verify you're on a Raspberry Pi"
-            echo "  3. Try reinstalling: pip install -r requirements.txt"
+            echo -e "${RED}✗ pyserial installation failed${NC}"
+            echo -e "${YELLOW}This is critical for Teensy communication. To fix:${NC}"
+            echo "  pip install pyserial"
         fi
         
         # Check numpy
@@ -458,32 +430,37 @@ install_dependencies() {
 # Function to test hardware
 test_hardware() {
     echo -e "\n${BLUE}Hardware test${NC}"
-    echo -e "${YELLOW}This will briefly flash the LEDs to verify connections${NC}"
-    echo -e "${YELLOW}Make sure LEDs are powered on!${NC}"
+    echo -e "${YELLOW}This will test the Teensy LED controller${NC}"
+    echo -e "${YELLOW}Make sure:${NC}"
+    echo -e "  - Teensy is connected via USB"
+    echo -e "  - LEDs are powered on (12V supply)"
+    echo -e "  - OctoWS2811 sketch is loaded on Teensy"
     read -p "Run hardware test? (y/n): " -n 1 -r
     echo
     
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        if [ -f "${PROJECT_DIR}/tests/test_spi.py" ]; then
-            echo -e "${GREEN}Running LED test...${NC}"
-            sudo "$VENV_PATH/bin/python" "${PROJECT_DIR}/tests/test_spi.py"
+        if [ -f "${PROJECT_DIR}/tests/test_teensy.py" ]; then
+            echo -e "${GREEN}Running Teensy LED test...${NC}"
+            "$VENV_PATH/bin/python" "${PROJECT_DIR}/tests/test_teensy.py"
             
             echo ""
-            read -p "Did the LEDs flash correctly? (y/n): " -n 1 -r
+            read -p "Did the LEDs display test patterns correctly? (y/n): " -n 1 -r
             echo
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 echo -e "${GREEN}✓ Hardware test successful${NC}"
             else
                 echo -e "${YELLOW}Hardware troubleshooting tips:${NC}"
                 echo "1. Check power supply is on (12V, 20A minimum)"
-                echo "2. Verify SPI connections:"
-                echo "   - Stem (250 LEDs): SPI1 on GPIO 20 (Pin 38)"
-                echo "   - Cap (450 LEDs): SPI0 on GPIO 10 (Pin 19)"
-                echo "3. Check ground connection between Pi and LED power"
-                echo "4. Try with fewer LEDs: --count 1"
+                echo "2. Verify Teensy connections:"
+                echo "   - USB cable to Pi"
+                echo "   - Data lines to LED strips (with level shifter if needed)"
+                echo "   - Common ground between Teensy, LEDs, and power supply"
+                echo "3. Check Arduino Serial Monitor for debug output"
+                echo "4. Try uploading a basic OctoWS2811 example sketch first"
             fi
         else
-            echo -e "${YELLOW}Test script not found, skipping hardware test${NC}"
+            echo -e "${YELLOW}Teensy test script not found${NC}"
+            echo "Will be created after Teensy firmware is ready"
         fi
     fi
 }
