@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
+#include <string.h>
 
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
@@ -22,8 +23,9 @@ int sm;
 volatile int running = 1;
 
 static inline void put_pixel(uint32_t pixel_rgb) {
-    // For RGB mode (24-bit), NO shift needed - data goes in lower 24 bits
-    pio_sm_put_blocking(pio, sm, pixel_rgb);
+    // For RGB mode with pull_threshold=24, PIO uses bits 31-8 of the 32-bit word
+    // Must shift our 24-bit RGB data up by 8 bits
+    pio_sm_put_blocking(pio, sm, pixel_rgb << 8u);
 }
 
 static inline uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b) {
@@ -73,10 +75,23 @@ int main(int argc, const char **argv) {
     
     printf("PIO initialized: program at %d, sm %d\n", offset, sm);
     
+    // Debug: Check actual clock speed
+    uint32_t sys_clk = clock_get_hz(clk_sys);
+    printf("System clock: %u Hz\n", sys_clk);
+    
     // Use 400kHz for mode 2, 800kHz otherwise
     uint freq = (mode == 2) ? 400000 : 800000;
-    printf("Using %dkHz timing\n\n", freq/1000);
+    printf("Using %dkHz timing\n", freq/1000);
+    
+    // Calculate what divider will be used
+    int cycles_per_bit = 10; // T1+T2+T3 from ws2812.pio
+    float expected_div = (float)sys_clk / (freq * cycles_per_bit);
+    printf("Expected clock divider: %.2f\n\n", expected_div);
+    
     ws2812_program_init(pio, sm, offset, gpio, freq, IS_RGBW);
+    
+    // Clear FIFOs before starting (ws2812_program_init already enables the SM)
+    pio_sm_clear_fifos(pio, sm);
     
     if (mode == 0) {
         // Mode 0: Basic color cycling
@@ -113,31 +128,55 @@ int main(int argc, const char **argv) {
         }
         
     } else if (mode == 1) {
-        // Mode 1: Individual pixel test - helps identify where corruption starts
-        printf("Mode 1: Individual pixel test\n");
-        printf("Lighting one pixel at a time with red\n\n");
+        // Mode 1: Individual pixel test - manual stepping
+        printf("Mode 1: Individual pixel test - MANUAL STEPPING\n");
+        printf("Sending pure RED (255,0,0) to one pixel at a time\n");
+        printf("Press ENTER to advance to next pixel, 'q' to quit\n\n");
         
-        while (running) {
-            for (int i = 0; i < NUM_PIXELS && running; i++) {
-                printf("Pixel %d/%d\n", i+1, NUM_PIXELS);
-                
-                // Clear all first
-                for (int j = 0; j < NUM_PIXELS; j++) {
+        for (int i = 0; i < NUM_PIXELS && running; i++) {
+            // Show exactly what we're sending
+            uint32_t pixel_data = urgb_u32(255, 0, 0);
+            uint32_t shifted_data = pixel_data << 8;
+            
+            printf("\nPixel %d/%d:\n", i+1, NUM_PIXELS);
+            printf("  RGB values: R=255, G=0, B=0\n");
+            printf("  Raw data: 0x%06X (bits: ", pixel_data);
+            for (int bit = 23; bit >= 0; bit--) {
+                printf("%d", (pixel_data >> bit) & 1);
+                if (bit % 8 == 0 && bit > 0) printf(" ");
+            }
+            printf(")\n");
+            printf("  After << 8: 0x%08X\n", shifted_data);
+            printf("  Sending this to pixel %d, zeros to all others\n", i+1);
+            
+            // Clear all pixels first
+            for (int j = 0; j < NUM_PIXELS; j++) {
+                put_pixel(0);
+            }
+            usleep(10000); // 10ms for reset
+            
+            // Light only pixel i with pure red
+            for (int j = 0; j < NUM_PIXELS; j++) {
+                if (j == i) {
+                    put_pixel(pixel_data);
+                } else {
                     put_pixel(0);
                 }
-                usleep(10000); // 10ms
-                
-                // Light only pixel i in red
-                for (int j = 0; j < NUM_PIXELS; j++) {
-                    if (j == i) {
-                        put_pixel(urgb_u32(255, 0, 0));
-                    } else {
-                        put_pixel(0);
-                    }
-                }
-                sleep(1);
+            }
+            
+            // Wait for user input
+            printf("What color do you see? ");
+            fflush(stdout);
+            char input[100];
+            if (fgets(input, sizeof(input), stdin) == NULL) {
+                break;
+            }
+            if (input[0] == 'q' || input[0] == 'Q') {
+                running = 0;
+                break;
             }
         }
+        printf("\nTest complete\n");
         
     } else if (mode == 2) {
         // Mode 2: Same as mode 0 but with 400kHz timing
